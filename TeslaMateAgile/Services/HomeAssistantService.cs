@@ -25,7 +25,7 @@ public class HomeAssistantService : IDynamicPriceDataService
 
     public async Task<IEnumerable<Price>> GetPriceData(DateTimeOffset from, DateTimeOffset to)
     {
-        var url = $"api/history/period/{from.UtcDateTime:o}?end={to.UtcDateTime:o}&filter_entity_id={_options.EntityId}";
+        var url = $"api/history/period/{from.UtcDateTime:o}?end_time={to.UtcDateTime:o}&filter_entity_id={_options.EntityId}";
         var resp = await _client.GetAsync(url);
         resp.EnsureSuccessStatusCode();
         var homeAssistantResponse = await JsonSerializer.DeserializeAsync<List<List<HomeAssistantResponse>>>(await resp.Content.ReadAsStreamAsync()) ?? throw new Exception($"Deserialization of Home Assistant API response failed");
@@ -36,7 +36,7 @@ public class HomeAssistantService : IDynamicPriceDataService
         }
         if (history.First().LastUpdated != from)
         {
-            throw new Exception($"Home Assistant has incomplete data for date range {from.UtcDateTime:o}?end={to.UtcDateTime:o}, ensure entity and {nameof(TeslaMateOptions.LookbackDays)} are set correctly");
+            throw new Exception($"Home Assistant has incomplete data for date range {from.UtcDateTime:o}?end_time={to.UtcDateTime:o}, ensure entity and {nameof(TeslaMateOptions.LookbackDays)} are set correctly");
         }
         var prices = new List<Price>();
         for (var i = 0; i < history.Count; i++)

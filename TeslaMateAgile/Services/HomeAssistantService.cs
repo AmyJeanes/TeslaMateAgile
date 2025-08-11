@@ -36,7 +36,7 @@ public class HomeAssistantService : IDynamicPriceDataService
         }
         if (history.First().LastUpdated != from)
         {
-            throw new Exception($"Home Assistant has incomplete data for date range {from.UtcDateTime:o}?end_time={to.UtcDateTime:o}, ensure entity and {nameof(TeslaMateOptions.LookbackDays)} are set correctly");
+            throw new Exception($"Home Assistant has incomplete data for date range {from.UtcDateTime:o} to {to.UtcDateTime:o}, ensure entity and {nameof(TeslaMateOptions.LookbackDays)} are set correctly");
         }
         var prices = new List<Price>();
         for (var i = 0; i < history.Count; i++)

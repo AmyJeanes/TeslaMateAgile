@@ -28,12 +28,12 @@ jobs:
         dotnet-version: '9.0.x'
 
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858 # v3
+      uses: github/codeql-action/init@76621b61decf072c1cee8dd1ce2d2a82d33c17ed # v3
       with:
         languages: ${{ matrix.language }}
 
     - name: Autobuild
-      uses: github/codeql-action/autobuild@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858 # v3
+      uses: github/codeql-action/autobuild@76621b61decf072c1cee8dd1ce2d2a82d33c17ed # v3
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858 # v3
+      uses: github/codeql-action/analyze@76621b61decf072c1cee8dd1ce2d2a82d33c17ed # v3

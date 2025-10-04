@@ -26,7 +26,7 @@ public class EnerginetService : IDynamicPriceDataService
 
     public async Task<IEnumerable<Price>> GetPriceData(DateTimeOffset from, DateTimeOffset to)
     {
-        var url = "Elspotprices?offset=0&start=" + from.AddHours(-2).AddMinutes(-1).UtcDateTime.ToString("yyyy-MM-ddTHH:mm") + "&end=" + to.AddHours(2).AddMinutes(1).UtcDateTime.ToString("yyyy-MM-ddTHH:mm") + "&filter={\"PriceArea\":[\"" + _options.Region + "\"]}&sort=HourUTC ASC&timezone=dk".Replace(@"\", string.Empty); ;
+        var url = "DayAheadPrices?offset=0&start=" + from.AddHours(-2).AddMinutes(-1).UtcDateTime.ToString("yyyy-MM-ddTHH:mm") + "&end=" + to.AddHours(2).AddMinutes(1).UtcDateTime.ToString("yyyy-MM-ddTHH:mm") + "&filter={\"PriceArea\":[\"" + _options.Region + "\"]}&sort=TimeUTC ASC&timezone=dk".Replace(@"\", string.Empty); ;
         var resp = await _client.GetAsync(url);
 
         resp.EnsureSuccessStatusCode();
@@ -41,14 +41,14 @@ public class EnerginetService : IDynamicPriceDataService
                 decimal fixedPrice = 0;
                 if (_fixedPriceService != null)
                 {
-                    var fixedPrices = await _fixedPriceService.GetPriceData(record.HourUTC, record.HourUTC.AddHours(1));
+                    var fixedPrices = await _fixedPriceService.GetPriceData(record.TimeUTC, record.TimeUTC.AddHours(1));
                     fixedPrice = fixedPrices.Sum(p => p.Value);
                 }
 
                 var spotPrice = _options.Currency switch
                 {
-                    EnerginetCurrency.DKK => record.SpotPriceDKK,
-                    EnerginetCurrency.EUR => record.SpotPriceEUR,
+                    EnerginetCurrency.DKK => record.DayAheadPriceDKK,
+                    EnerginetCurrency.EUR => record.DayAheadPriceEUR,
                     _ => throw new ArgumentOutOfRangeException(nameof(_options.Currency)),
                 };
 
@@ -64,8 +64,8 @@ public class EnerginetService : IDynamicPriceDataService
                 }
                 prices.Add(new Price
                 {
-                    ValidFrom = record.HourUTC,
-                    ValidTo = record.HourUTC.AddHours(1),
+                    ValidFrom = record.TimeUTC,
+                    ValidTo = record.TimeUTC.AddMinutes(15),
                     Value = price
                 });
             }
@@ -82,15 +82,15 @@ public class EnerginetService : IDynamicPriceDataService
 
     private class EnerginetResponseRow
     {
-        private DateTime _hourUTC;
+        private DateTime _timeUTC;
 
-        [JsonPropertyName("HourUTC")]
-        public DateTime HourUTC { get => _hourUTC; set => _hourUTC = DateTime.SpecifyKind(value, DateTimeKind.Utc); }
+        [JsonPropertyName("TimeUTC")]
+        public DateTime TimeUTC { get => _timeUTC; set => _timeUTC = DateTime.SpecifyKind(value, DateTimeKind.Utc); }
 
-        [JsonPropertyName("SpotPriceDKK")]
-        public decimal SpotPriceDKK { get; set; }
+        [JsonPropertyName("DayAheadPriceDKK")]
+        public decimal DayAheadPriceDKK { get; set; }
 
-        [JsonPropertyName("SpotPriceEUR")]
-        public decimal SpotPriceEUR { get; set; }
+        [JsonPropertyName("DayAheadPriceEUR")]
+        public decimal DayAheadPriceEUR { get; set; }
     }
 }

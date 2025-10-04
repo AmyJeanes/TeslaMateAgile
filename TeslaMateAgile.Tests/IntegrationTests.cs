@@ -113,8 +113,8 @@ public class IntegrationTests
         });
         var priceDataService = services.BuildServiceProvider().GetRequiredService<IDynamicPriceDataService>();
 
-        var from = new DateTimeOffset(2022, 2, 20, 0, 0, 0, new TimeSpan(1, 0, 0));
-        var to = new DateTimeOffset(2022, 2, 20, 23, 59, 0, new TimeSpan(1, 0, 0));
+        var from = new DateTimeOffset(2025, 10, 2, 0, 0, 0, new TimeSpan(1, 0, 0));
+        var to = new DateTimeOffset(2025, 10, 2, 23, 59, 0, new TimeSpan(1, 0, 0));
 
         var priceData = await priceDataService.GetPriceData(from, to);
 

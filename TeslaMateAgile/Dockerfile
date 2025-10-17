@@ -4,7 +4,7 @@ FROM mcr.microsoft.com/dotnet/runtime:9.0-${arch} AS base
 USER app
 WORKDIR /app
 
-FROM mcr.microsoft.com/dotnet/sdk:9.0@sha256:a5dd7352c0c058a6f847c95a1147b060e95a532444f14b34d8fa9aaa0a76702f AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0@sha256:ed46c853a4f100ba7aab2394e9fb9f9b8989e93346b04632dbce11e5da7623d8 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["TeslaMateAgile/TeslaMateAgile.csproj", "TeslaMateAgile/"]

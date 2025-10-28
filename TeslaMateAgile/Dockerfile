@@ -1,4 +1,4 @@
-ARG arch=bookworm-slim
+ARG arch=noble
 
 FROM mcr.microsoft.com/dotnet/runtime:10.0-${arch} AS base
 USER app

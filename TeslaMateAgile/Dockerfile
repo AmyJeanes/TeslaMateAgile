@@ -1,6 +1,6 @@
 ARG arch=bookworm-slim
 
-FROM mcr.microsoft.com/dotnet/runtime:9.0-${arch} AS base
+FROM mcr.microsoft.com/dotnet/runtime:10.0-${arch} AS base
 USER app
 WORKDIR /app
 

@@ -124,12 +124,26 @@ public class PriceHelper : IPriceHelper
             _logger.LogWarning("Unable to determine phases for charges");
             return (0, 0);
         }
+        var processedCharges = new HashSet<Charge>();
         foreach (var price in prices)
         {
-            var chargesForPrice = charges.Where(x => x.Date >= price.ValidFrom && x.Date <= price.ValidTo).ToList();
+            var chargesForPrice = charges.Where(x => x.Date >= price.ValidFrom && x.Date < price.ValidTo && !processedCharges.Contains(x)).ToList();
+            
+            // For the last price interval, include charges at the end boundary
+            if (price == prices.Last())
+            {
+                chargesForPrice.AddRange(charges.Where(x => x.Date == price.ValidTo && !processedCharges.Contains(x)));
+            }
+            
             if (chargesForPrice.Count == 0)
             {
                 continue;
+            }
+            
+            // Mark these charges as processed to avoid double counting
+            foreach (var charge in chargesForPrice)
+            {
+                processedCharges.Add(charge);
             }
             chargesCalculated += chargesForPrice.Count;
             if (lastCharge != null)
@@ -148,6 +162,24 @@ public class PriceHelper : IPriceHelper
         var chargesCount = charges.Count();
         if (chargesCalculated != chargesCount)
         {
+            var unprocessedCharges = charges.Where(c => !processedCharges.Contains(c)).ToList();
+            _logger.LogWarning("Charge calculation incomplete, pricing calculated for {ChargesCalculated} / {ChargesCount}. Unprocessed charges:", chargesCalculated, chargesCount);
+            foreach (var unprocessedCharge in unprocessedCharges.Take(10)) // Log first 10 unprocessed charges
+            {
+                _logger.LogWarning("Unprocessed charge at {Date} UTC", unprocessedCharge.Date.UtcDateTime);
+            }
+            
+            // Check for gaps in price data
+            var chargeTimeRange = charges.Select(c => c.Date).OrderBy(d => d);
+            var priceTimeRanges = prices.Select(p => new { p.ValidFrom, p.ValidTo }).OrderBy(p => p.ValidFrom);
+            
+            _logger.LogWarning("Charge time range: {MinTime} UTC to {MaxTime} UTC", chargeTimeRange.First().UtcDateTime, chargeTimeRange.Last().UtcDateTime);
+            _logger.LogWarning("Available price intervals:");
+            foreach (var priceRange in priceTimeRanges)
+            {
+                _logger.LogWarning("  {ValidFrom} UTC - {ValidTo} UTC", priceRange.ValidFrom.UtcDateTime, priceRange.ValidTo.UtcDateTime);
+            }
+            
             throw new Exception($"Charge calculation failed, pricing calculated for {chargesCalculated} / {chargesCount}, likely missing price data");
         }
         return (Math.Round(totalPrice, 2), Math.Round(totalEnergy, 2));

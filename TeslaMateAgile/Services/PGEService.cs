@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -12,27 +13,46 @@ public class PGEService : IDynamicPriceDataService
 {
     private readonly HttpClient _client;
     private readonly PGEOptions _options;
+    private readonly ILogger<PGEService> _logger;
 
-    public PGEService(HttpClient client, IOptions<PGEOptions> options)
+    public PGEService(HttpClient client, IOptions<PGEOptions> options, ILogger<PGEService> logger)
     {
         _client = client;
         _options = options.Value;
+        _logger = logger;
     }
 
     public async Task<IEnumerable<Price>> GetPriceData(DateTimeOffset from, DateTimeOffset to)
     {
+        _logger.LogInformation("Fetching PGE price data from {From} UTC to {To} UTC", from.UtcDateTime, to.UtcDateTime);
+        
         // PGE publishes pricing at 6pm for the following day
         // We need to fetch data to cover the requested period
         var prices = new List<Price>();
         
-        // Group requests by date range to minimize API calls
-        var currentDate = from.Date;
-        var endDate = to.Date;
+        // Expand the date range to ensure we get complete coverage
+        // Convert to Pacific time to determine the correct local dates to request
+        var pacificTimeZone = TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+        var fromPacific = TimeZoneInfo.ConvertTimeFromUtc(from.UtcDateTime, pacificTimeZone);
+        var toPacific = TimeZoneInfo.ConvertTimeFromUtc(to.UtcDateTime, pacificTimeZone);
         
+        _logger.LogDebug("UTC range: {FromUTC} to {ToUTC}", from.UtcDateTime, to.UtcDateTime);
+        _logger.LogDebug("Pacific range: {FromPacific} to {ToPacific}", fromPacific, toPacific);
+        
+        // Request data for all days that might contain the needed intervals
+        var currentDate = fromPacific.Date.AddDays(-1); // Start one day earlier to ensure coverage
+        var endDate = toPacific.Date.AddDays(1); // End one day later to ensure coverage
+        
+        _logger.LogDebug("Will request PGE data for Pacific dates: {StartDate} to {EndDate}", 
+            currentDate.ToString("yyyy-MM-dd"), endDate.ToString("yyyy-MM-dd"));
+            
         while (currentDate <= endDate)
         {
             var startDateStr = currentDate.ToString("yyyyMMdd");
             var endDateStr = currentDate.AddDays(1).ToString("yyyyMMdd");
+            
+            _logger.LogDebug("Requesting PGE data for Pacific date: {CurrentDate} (startdate={StartDate}, enddate={EndDate})", 
+                currentDate.ToString("yyyy-MM-dd"), startDateStr, endDateStr);
             
             var queryParams = new Dictionary<string, string>
             {
@@ -47,6 +67,9 @@ public class PGEService : IDynamicPriceDataService
             
             var queryString = string.Join("&", queryParams.Select(kvp => $"{kvp.Key}={Uri.EscapeDataString(kvp.Value)}"));
             var url = $"/v1/getPricing?{queryString}";
+            
+            _logger.LogDebug("Requesting PGE data for {CurrentDate} (startdate={StartDate}, enddate={EndDate}): {Url}", 
+                currentDate.ToString("yyyy-MM-dd"), startDateStr, endDateStr, url);
             
             var resp = await _client.GetAsync(url);
             resp.EnsureSuccessStatusCode();
@@ -68,14 +91,50 @@ public class PGEService : IDynamicPriceDataService
                 {
                     if (priceCurve.PriceDetails != null)
                     {
-                        prices.AddRange(priceCurve.PriceDetails.Select(x => new Price
+                        _logger.LogDebug("Processing {Count} price intervals from {StartTime} to {EndTime} with {IntervalLength} minute intervals", 
+                            priceCurve.PriceDetails.Count, 
+                            priceCurve.PriceHeader.StartTime,
+                            priceCurve.PriceHeader.EndTime,
+                            priceCurve.PriceHeader.IntervalLengthInMinutes);
+                        
+                        // Validate we have complete daily coverage
+                        var expectedIntervalsPerDay = 24 * 60 / priceCurve.PriceHeader.IntervalLengthInMinutes;
+                        if (priceCurve.PriceDetails.Count < expectedIntervalsPerDay)
                         {
-                            Value = decimal.Parse(x.IntervalPrice),
-                            ValidFrom = ParsePGEDateTime(x.StartIntervalTimeStamp),
-                            ValidTo = ParsePGEDateTime(x.StartIntervalTimeStamp).AddMinutes(priceCurve.PriceHeader.IntervalLengthInMinutes)
-                        }));
+                            _logger.LogWarning("Incomplete daily data: expected {Expected} intervals but got {Actual} for date {CurrentDate}", 
+                                expectedIntervalsPerDay, priceCurve.PriceDetails.Count, currentDate.ToString("yyyy-MM-dd"));
+                        }
+                            
+                        var parsedPrices = priceCurve.PriceDetails.Select(x => {
+                            var validFrom = ParsePGEDateTime(x.StartIntervalTimeStamp);
+                            var validTo = validFrom.AddMinutes(priceCurve.PriceHeader.IntervalLengthInMinutes);
+                            return new Price
+                            {
+                                Value = decimal.Parse(x.IntervalPrice),
+                                ValidFrom = validFrom,
+                                ValidTo = validTo
+                            };
+                        }).ToList();
+                        
+                        // Log first and last interval for this day to verify timezone handling
+                        if (parsedPrices.Count > 0)
+                        {
+                            var firstPrice = parsedPrices.First();
+                            var lastPrice = parsedPrices.Last();
+                            _logger.LogDebug("Price intervals for {CurrentDate}: {FirstStart} UTC to {LastEnd} UTC ({Count} intervals)", 
+                                currentDate.ToString("yyyy-MM-dd"),
+                                firstPrice.ValidFrom.UtcDateTime, 
+                                lastPrice.ValidTo.UtcDateTime,
+                                parsedPrices.Count);
+                        }
+                        
+                        prices.AddRange(parsedPrices);
                     }
                 }
+            }
+            else
+            {
+                _logger.LogWarning("No price data returned from PGE API for date {CurrentDate}", currentDate.ToString("yyyy-MM-dd"));
             }
             
             currentDate = currentDate.AddDays(1);
@@ -87,18 +146,64 @@ public class PGEService : IDynamicPriceDataService
             }
         }
         
+        // Log all prices before filtering
+        _logger.LogInformation("Retrieved {TotalCount} price intervals from PGE API", prices.Count);
+        if (prices.Count > 0)
+        {
+            var minPrice = prices.Min(p => p.ValidFrom);
+            var maxPrice = prices.Max(p => p.ValidTo);
+            _logger.LogInformation("Price data coverage: {MinTime} UTC to {MaxTime} UTC", minPrice.UtcDateTime, maxPrice.UtcDateTime);
+        }
+        
         // Filter to return prices that overlap with the requested range
         // A price overlaps if it starts before the range ends AND ends after the range starts
-        return prices.Where(p => p.ValidFrom < to && p.ValidTo > from);
+        var filteredPrices = prices.Where(p => p.ValidFrom < to && p.ValidTo > from).ToList();
+        
+        _logger.LogInformation("Returning {Count} price intervals covering the requested period ({From} UTC to {To} UTC)", 
+            filteredPrices.Count, from.UtcDateTime, to.UtcDateTime);
+        
+        // Check for gaps in coverage
+        if (filteredPrices.Count > 1)
+        {
+            var sortedPrices = filteredPrices.OrderBy(p => p.ValidFrom).ToList();
+            for (int i = 1; i < sortedPrices.Count; i++)
+            {
+                var prevEnd = sortedPrices[i - 1].ValidTo;
+                var currentStart = sortedPrices[i].ValidFrom;
+                if (prevEnd < currentStart)
+                {
+                    _logger.LogWarning("Gap in price data: {PrevEnd} UTC to {CurrentStart} UTC", 
+                        prevEnd.UtcDateTime, currentStart.UtcDateTime);
+                }
+            }
+        }
+        
+        foreach (var price in filteredPrices)
+        {
+            _logger.LogDebug("Price interval: {ValidFrom} UTC - {ValidTo} UTC: {Value}", 
+                price.ValidFrom.UtcDateTime, price.ValidTo.UtcDateTime, price.Value);
+        }
+        
+        return filteredPrices;
     }
 
     private static DateTimeOffset ParsePGEDateTime(string dateTimeString)
     {
-        // PGE returns dates like "2025-10-26T00:00:00-0700" 
-        // which need special parsing because the timezone offset lacks a colon
+        // PGE returns dates in multiple formats:
+        // "2023-10-26T00:00:00-07:00" (with colon in timezone)
+        // "2023-10-26T00:00:00-0700" (without colon in timezone)
+        
+        var formats = new[]
+        {
+            "yyyy-MM-ddTHH:mm:sszzz",     // -07:00 format
+            "yyyy-MM-ddTHH:mm:sszz",      // -0700 format  
+            "yyyy-MM-ddTHH:mm:ss.fffzzz", // with milliseconds and colon
+            "yyyy-MM-ddTHH:mm:ss.fffzz"   // with milliseconds, no colon
+        };
+        
         if (DateTimeOffset.TryParseExact(
             dateTimeString,
-            new[] { "yyyy-MM-ddTHH:mm:sszzz", "yyyy-MM-ddTHH:mm:sszz" },
+            formats,
             CultureInfo.InvariantCulture,
             DateTimeStyles.None,
             out var result))
@@ -107,7 +212,14 @@ public class PGEService : IDynamicPriceDataService
         }
         
         // Fallback to standard parsing
-        return DateTimeOffset.Parse(dateTimeString);
+        try
+        {
+            return DateTimeOffset.Parse(dateTimeString, CultureInfo.InvariantCulture);
+        }
+        catch (Exception)
+        {
+            throw new FormatException($"Unable to parse PGE datetime string: '{dateTimeString}'");
+        }
     }
 
     public class PriceComponent

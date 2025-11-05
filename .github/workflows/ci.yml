@@ -19,7 +19,7 @@ jobs:
     - name: Setup .NET Core SDK
       uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d # v5
       with:
-        dotnet-version: '9.0.x'
+        dotnet-version: '10.0.x'
     
     - name: Set variables
       id: variables
@@ -43,33 +43,33 @@ jobs:
         for appname in TeslaMateAgile; do
           app=`echo $appname | tr '[:upper:]' '[:lower:]'`
           echo "Building $appname docker amd64"
-          docker build -t $app:amd64 -f "$appname/Dockerfile" . --build-arg arch=bookworm-slim-amd64
+          docker build -t $app:amd64 -f "$appname/Dockerfile" . --build-arg arch=noble-amd64
           echo "Building $appname docker arm32v7"
-          docker build -t $app:arm32v7 -f "$appname/Dockerfile" . --build-arg arch=bookworm-slim-arm32v7
+          docker build -t $app:arm32v7 -f "$appname/Dockerfile" . --build-arg arch=noble-arm32v7
           echo "Building $appname docker arm64v8"
-          docker build -t $app:arm64v8 -f "$appname/Dockerfile" . --build-arg arch=bookworm-slim-arm64v8
+          docker build -t $app:arm64v8 -f "$appname/Dockerfile" . --build-arg arch=noble-arm64v8
         done
       
     - name: Upload a Build Artifact
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
       with:
         name: TeslaMateAgile-linux-x64
         path: ./output/TeslaMateAgile-linux-x64
     
     - name: Upload a Build Artifact
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
       with:
         name: TeslaMateAgile-linux-arm64
         path: ./output/TeslaMateAgile-linux-arm64
         
     - name: Upload a Build Artifact
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
       with:
         name: TeslaMateAgile-linux-arm
         path: ./output/TeslaMateAgile-linux-arm
         
     - name: Upload a Build Artifact
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
       with:
         name: TeslaMateAgile-win-x64
         path: ./output/TeslaMateAgile-win-x64

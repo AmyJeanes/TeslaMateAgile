@@ -139,12 +139,12 @@ The EDF Tempo provider allows you to use TeslaMateAgile with the EDF Tempo tarif
 ```yaml
 - TeslaMate__EnergyProvider=EDFTempo
 - EDFTempo__BaseUrl=https://www.api-couleur-tempo.fr/api/joursTempo # EDF Tempo API endpoint
-- EDFTempo__BLUE_HP=0.1369 # Blue day peak hours price (€/kWh)
-- EDFTempo__BLUE_HC=0.1056 # Blue day off-peak hours price (€/kWh)
-- EDFTempo__WHITE_HP=0.1654 # White day peak hours price (€/kWh)
-- EDFTempo__WHITE_HC=0.1254 # White day off-peak hours price (€/kWh)
-- EDFTempo__RED_HP=0.5486 # Red day peak hours price (€/kWh)
-- EDFTempo__RED_HC=0.1216 # Red day off-peak hours price (€/kWh)
+- EDFTempo__BLUE_HP=0.1494 # Blue day peak hours price (€/kWh)
+- EDFTempo__BLUE_HC=0.1232 # Blue day off-peak hours price (€/kWh)
+- EDFTempo__WHITE_HP=0.1730 # White day peak hours price (€/kWh)
+- EDFTempo__WHITE_HC=0.1391 # White day off-peak hours price (€/kWh)
+- EDFTempo__RED_HP=0.6468 # Red day peak hours price (€/kWh)
+- EDFTempo__RED_HC=0.1460 # Red day off-peak hours price (€/kWh)
 ```
 
 Note: EDF Tempo pricing uses French time (Central European Time) and follows this schedule:

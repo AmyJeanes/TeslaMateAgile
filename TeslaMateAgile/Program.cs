@@ -204,6 +204,20 @@ public class Program
                         client.BaseAddress = new Uri(baseUrl);
                     });
                 }
+                else if (energyProvider == EnergyProvider.PGE)
+                {
+                    services.AddOptions<PGEOptions>()
+                        .Bind(config.GetSection("PGE"))
+                        .ValidateDataAnnotations()
+                        .ValidateOnStart();
+                    services.AddHttpClient<IPriceDataService, PGEService>((serviceProvider, client) =>
+                    {
+                        var options = serviceProvider.GetRequiredService<IOptions<PGEOptions>>().Value;
+                        var baseUrl = options.BaseUrl;
+                        if (!baseUrl.EndsWith("/")) { baseUrl += "/"; }
+                        client.BaseAddress = new Uri(baseUrl);
+                    });
+                }
                 else
                 {
                     throw new ArgumentException("Invalid energy provider set", nameof(energyProvider));

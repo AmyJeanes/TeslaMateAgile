@@ -10,5 +10,6 @@ public enum EnergyProvider
     Energinet,
     HomeAssistant,
     Monta,
-    EDFTempo
+    EDFTempo,
+    PGE
 }

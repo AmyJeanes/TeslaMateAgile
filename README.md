@@ -157,23 +157,17 @@ The PGE provider allows you to use TeslaMateAgile with Pacific Gas & Electric's 
 
 ```yaml
 - TeslaMate__EnergyProvider=PGE
-- PGE__BaseUrl=https://pge-pe-api.gridx.com # PGE API endpoint (default)
-- PGE__Utility=PGE # Utility name (default: PGE)
-- PGE__Market=DAM # Market type - Day-Ahead Market (default: DAM)
-- PGE__RateName=EV2A # Your rate plan (e.g., EV2A, E-ELEC, etc.)
-- PGE__RepresentativeCircuitId=083611114 # Your representative circuit ID
-- PGE__Program=CalFUSE # Program name (default: CalFUSE)
+- PGE__RateName=EV2A # Your specific PGE rate plan (e.g., EV2A, E-ELEC, etc.)
+- PGE__RepresentativeCircuitId=123456789 # Your specific circuit identifier for your service territory
+- PGE__BaseUrl=https://pge-pe-api.gridx.com # Optional: PGE API endpoint
+- PGE__Utility=PGE # Optional:  Utility name
+- PGE__Market=DAM # Optional: Market type - Day-Ahead Market
+- PGE__Program=CalFUSE # Optional: Program name
 ```
 
-**Required Configuration:**
-- `RateName`: Your specific PGE rate plan (e.g., EV2A for electric vehicle rates)
-- `RepresentativeCircuitId`: Your specific circuit identifier
-
-**Optional Configuration:**
-- `BaseUrl`: API endpoint (default: https://pge-pe-api.gridx.com)
-- `Utility`: Utility identifier (default: PGE)
-- `Market`: Market type (default: DAM for Day-Ahead Market)
-- `Program`: Program identifier (default: CalFUSE)
+**How to find your values:**
+- `RateName`: Check your PGE bill or account online for your rate schedule
+- `RepresentativeCircuitId`: This identifies your local pricing zone - you may need to contact PGE customer service or check their website for your area's circuit ID
 
 Note: Pricing is published daily at 6pm Pacific Time for the following day. Make sure your `UpdateIntervalSeconds` allows for regular updates to catch new pricing data.
 

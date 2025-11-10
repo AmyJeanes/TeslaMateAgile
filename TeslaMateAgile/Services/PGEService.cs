@@ -20,6 +20,9 @@ public class PGEService : IDynamicPriceDataService
         _client = client;
         _options = options.Value;
         _logger = logger;
+        
+        _logger.LogInformation("PGE Service initialized with RateName: {RateName}, Circuit: {CircuitId}", 
+            _options.RateName, _options.RepresentativeCircuitId);
     }
 
     public async Task<IEnumerable<Price>> GetPriceData(DateTimeOffset from, DateTimeOffset to)

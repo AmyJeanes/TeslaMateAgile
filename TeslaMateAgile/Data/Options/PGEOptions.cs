@@ -5,13 +5,13 @@ namespace TeslaMateAgile.Data.Options;
 public class PGEOptions
 {
     [Required]
-    public string BaseUrl { get; set; } = "https://pge-pe-api.gridx.com";
+    public string BaseUrl { get; set; }
 
     [Required]
-    public string Utility { get; set; } = "PGE";
+    public string Utility { get; set; }
 
     [Required]
-    public string Market { get; set; } = "DAM";
+    public string Market { get; set; }
 
     [Required]
     public string RateName { get; set; }
@@ -19,5 +19,6 @@ public class PGEOptions
     [Required]
     public string RepresentativeCircuitId { get; set; }
 
-    public string Program { get; set; } = "CalFUSE";
+    [Required]
+    public string Program { get; set; }
 }

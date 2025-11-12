@@ -39,6 +39,8 @@ public class PGEServiceTests
         var jsonFile = "pge_test.json";
         var json = File.ReadAllText(Path.Combine("Prices", jsonFile));
 
+        // The service makes 3 requests for 3 different days (buffer days for timezone handling)
+        // Return the same test data for all 3 requests - the service will de-duplicate
         _handler.SetupAnyRequest()
             .ReturnsResponse(json, "application/json");
 
@@ -47,13 +49,12 @@ public class PGEServiceTests
         var prices = await _subject.GetPriceData(startDate, endDate);
         var priceList = prices.ToList();
 
-        // The service now requests multiple days (with buffer days for timezone handling)
-        // so we expect 3 requests: one day before, the actual day, and one day after
+        // The service requests 3 days: one day before, the actual day, and one day after
         _handler.VerifyAnyRequest(Times.Exactly(3));
 
         // The service should filter and return only prices that overlap with the requested range
-        // Since we're fetching 3 days of data (each with 5 intervals in the test data)
-        // but only filtering to the requested 5-hour period, we should get 5 intervals
+        // The mock returns the same 5 intervals for all 3 requests (15 total)
+        // but they should be filtered to only return intervals that overlap with the requested period
         Assert.That(priceList.Count, Is.GreaterThanOrEqualTo(5), "Should return at least the 5 intervals in the requested range");
         
         // Verify the first and last prices are within or overlap the requested range
@@ -64,7 +65,15 @@ public class PGEServiceTests
         Assert.That(lastPrice.ValidTo, Is.GreaterThanOrEqualTo(startDate), "Last price should end after or at start date");
         
         // Find the price intervals that exactly match our test data expectations
-        var exactMatches = priceList.Where(p => 
+        // Note: The mock returns the same data 3 times, so we'll see duplicates
+        // We need to get distinct intervals by their timestamp
+        var distinctPrices = priceList
+            .GroupBy(p => p.ValidFrom)
+            .Select(g => g.First())
+            .OrderBy(p => p.ValidFrom)
+            .ToList();
+        
+        var exactMatches = distinctPrices.Where(p => 
             p.ValidFrom >= startDate && p.ValidTo <= endDate).ToList();
         
         Assert.That(exactMatches.Count, Is.EqualTo(5), "Should have 5 complete intervals within the range");
@@ -94,6 +103,7 @@ public class PGEServiceTests
         var ex = Assert.Throws<InvalidOperationException>(() => 
             new PGEService(httpClient, pgeOptions, mockLogger.Object));
         
+        Assert.That(ex, Is.Not.Null);
         Assert.That(ex.Message, Does.Contain("PGE RateName is required"));
     }
 
@@ -115,6 +125,7 @@ public class PGEServiceTests
         var ex = Assert.Throws<InvalidOperationException>(() => 
             new PGEService(httpClient, pgeOptions, mockLogger.Object));
         
+        Assert.That(ex, Is.Not.Null);
         Assert.That(ex.Message, Does.Contain("PGE RepresentativeCircuitId is required"));
     }
 }

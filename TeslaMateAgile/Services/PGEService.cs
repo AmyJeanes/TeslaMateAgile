@@ -21,6 +21,17 @@ public class PGEService : IDynamicPriceDataService
         _options = options.Value;
         _logger = logger;
         
+        // Validate required options
+        if (string.IsNullOrWhiteSpace(_options.RateName))
+        {
+            throw new InvalidOperationException("PGE RateName is required");
+        }
+        
+        if (string.IsNullOrWhiteSpace(_options.RepresentativeCircuitId))
+        {
+            throw new InvalidOperationException("PGE RepresentativeCircuitId is required");
+        }
+        
         _logger.LogInformation("PGE Service initialized with RateName: {RateName}, Circuit: {CircuitId}", 
             _options.RateName, _options.RepresentativeCircuitId);
     }

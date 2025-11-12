@@ -28,7 +28,7 @@ namespace TeslaMateAgile.Services
             var charges = await GetCharges(accessToken, from, to);
             return charges.Select(x => new ProviderCharge
             {
-                Cost = x.Price,
+                Cost = x.Cost,
                 EnergyKwh = x.ConsumedKwh,
                 StartTime = x.StartedAt,
                 EndTime = x.StoppedAt
@@ -58,7 +58,7 @@ namespace TeslaMateAgile.Services
         {
             from = from.AddHours(FetchHoursBeforeFrom);
             to = to.AddHours(FetchHoursAfterTo);
-            
+
             var requestUri = $"{_options.BaseUrl}/charges?state=completed&fromDate={from.UtcDateTime:o}&toDate={to.UtcDateTime:o}";
             if (_options.ChargePointId.HasValue)
             {
@@ -97,8 +97,8 @@ namespace TeslaMateAgile.Services
             [JsonPropertyName("stoppedAt")]
             public DateTimeOffset StoppedAt { get; set; }
 
-            [JsonPropertyName("price")]
-            public decimal Price { get; set; }
+            [JsonPropertyName("cost")]
+            public decimal Cost { get; set; }
 
             [JsonPropertyName("consumedKwh")]
             public decimal ConsumedKwh { get; set; }

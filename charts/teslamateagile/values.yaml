@@ -1,6 +1,6 @@
 image:
   repository: mattjeanes/teslamateagile
-  tag: v1.19.0@sha256:f38278a84c3b845f402785dee307895fe6344feb7b9d346fa6987e68031c34c9
+  tag: v1.20.0@sha256:0b0d503ba16d546251b91c8d2d9011b17bdf5576298d376cbb3a99c812cc3d96
   pullPolicy: IfNotPresent
 resources:
   requests:

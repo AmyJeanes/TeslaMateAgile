@@ -47,7 +47,7 @@ namespace TeslaMateAgile.Tests.Services
                     {
                         startedAt = from,
                         stoppedAt = to,
-                        price = 10.0M,
+                        cost = 10.0M,
                         consumedKwh = 15.0M
                     }
                 }
@@ -96,7 +96,7 @@ namespace TeslaMateAgile.Tests.Services
                     {
                         startedAt = from,
                         stoppedAt = to,
-                        price = 10.0M,
+                        cost = 10.0M,
                         consumedKwh = 15.0M
                     }
                 }

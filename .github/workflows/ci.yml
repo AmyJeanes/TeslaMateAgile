@@ -122,7 +122,7 @@ jobs:
 
     - name: Push Docker images (GitHub Container Registry)
       run: |
-        echo $GITHUB_TOKEN | docker login --username amyjeanes --password-stdin
+        echo $GITHUB_TOKEN | docker login ghcr.io --username amyjeanes --password-stdin
         for appname in TeslaMateAgile; do
           app=`echo $appname | tr '[:upper:]' '[:lower:]'`
           echo "Deploying $appname"

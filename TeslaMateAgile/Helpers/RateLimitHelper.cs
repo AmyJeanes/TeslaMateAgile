@@ -33,8 +33,12 @@ public class RateLimitHelper : IRateLimitHelper
 
     public IRateLimitHelper Configure(IRateLimitedService rateLimitedService)
     {
-        _rateLimitMaxRequests = rateLimitedService?.DefaultRateLimitMaxRequests ?? _teslaMateOptions.RateLimitMaxRequests;
-        _rateLimitPeriodSeconds = rateLimitedService?.DefaultRateLimitPeriodSeconds ?? _teslaMateOptions.RateLimitPeriodSeconds;
+        _rateLimitMaxRequests = _teslaMateOptions.RateLimitMaxRequests > 0
+            ? _teslaMateOptions.RateLimitMaxRequests
+            : (rateLimitedService?.DefaultRateLimitMaxRequests ?? 0);
+        _rateLimitPeriodSeconds = _teslaMateOptions.RateLimitPeriodSeconds > 0
+            ? _teslaMateOptions.RateLimitPeriodSeconds
+            : (rateLimitedService?.DefaultRateLimitPeriodSeconds ?? 0);
         return this;
     }
 

@@ -6,6 +6,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NUnit.Framework;
 using TeslaMateAgile.Data.Options;
+using TeslaMateAgile.Helpers.Interfaces;
+using TeslaMateAgile.Managers;
 using TeslaMateAgile.Services;
 using TeslaMateAgile.Services.Interfaces;
 
@@ -42,8 +44,8 @@ public class IntegrationTests
 
         var priceData = await priceDataService.GetPriceData(from, to);
 
-        Assert.That(priceData.Min(x => x.ValidFrom), Is.LessThanOrEqualTo(from));
-        Assert.That(priceData.Max(x => x.ValidTo), Is.GreaterThanOrEqualTo(to));
+        Assert.That(priceData.Prices.Min(x => x.ValidFrom), Is.LessThanOrEqualTo(from));
+        Assert.That(priceData.Prices.Max(x => x.ValidTo), Is.GreaterThanOrEqualTo(to));
     }
 
     [Ignore(IntegrationTest)]
@@ -76,8 +78,8 @@ public class IntegrationTests
 
         var priceData = await priceDataService.GetPriceData(from, to);
 
-        Assert.That(priceData.Min(x => x.ValidFrom), Is.LessThanOrEqualTo(from));
-        Assert.That(priceData.Max(x => x.ValidTo), Is.GreaterThanOrEqualTo(to));
+        Assert.That(priceData.Prices.Min(x => x.ValidFrom), Is.LessThanOrEqualTo(from));
+        Assert.That(priceData.Prices.Max(x => x.ValidTo), Is.GreaterThanOrEqualTo(to));
     }
 
     [Ignore(IntegrationTest)]
@@ -118,13 +120,13 @@ public class IntegrationTests
 
         var priceData = await priceDataService.GetPriceData(from, to);
 
-        foreach (var price in priceData)
+        foreach (var price in priceData.Prices)
         {
             Console.WriteLine($"{price.ValidFrom} - {price.ValidTo} - {price.Value}");
         }
 
-        Assert.That(priceData.Min(x => x.ValidFrom), Is.LessThanOrEqualTo(from));
-        Assert.That(priceData.Max(x => x.ValidTo), Is.GreaterThanOrEqualTo(to));
+        Assert.That(priceData.Prices.Min(x => x.ValidFrom), Is.LessThanOrEqualTo(from));
+        Assert.That(priceData.Prices.Max(x => x.ValidTo), Is.GreaterThanOrEqualTo(to));
     }
 
     [Ignore(IntegrationTest)]
@@ -153,9 +155,11 @@ public class IntegrationTests
         var logger = new ServiceCollection()
             .AddLogging(x => x.AddConsole().SetMinimumLevel(LogLevel.Debug))
             .BuildServiceProvider()
-            .GetRequiredService<ILogger<PriceHelper>>();
+            .GetRequiredService<ILogger<PriceManager>>();
 
         var priceDataService = services.BuildServiceProvider().GetRequiredService<IWholePriceDataService>();
+
+        var rateLimitHelper = services.BuildServiceProvider().GetRequiredService<IRateLimitHelper>();
 
         var options = new TeslaMateOptions
         {
@@ -163,17 +167,18 @@ public class IntegrationTests
             MatchingEndToleranceMinutes = 240,
             MatchingEnergyToleranceRatio = 0.2M
         };
-        var priceHelper = new PriceHelper(logger, null, priceDataService, Options.Create(options));
+        var priceManager = new PriceManager(logger, null, priceDataService, rateLimitHelper, Options.Create(options));
 
         var from = DateTimeOffset.Parse("2024-10-17T05:51:55+00:00");
         var to = DateTimeOffset.Parse("2024-10-17T08:57:54+00:00");
         var energyUsed = 30M;
 
-        var possibleCharges = await priceDataService.GetCharges(from.AddMinutes(-120), to.AddMinutes(120));
+        var providerChargeData = await priceDataService.GetCharges(from.AddMinutes(-120), to.AddMinutes(120));
+        var possibleCharges = providerChargeData.Charges;
 
-
-        var appropriateCharge = priceHelper.LocateMostAppropriateCharge(possibleCharges, energyUsed, from, to);
+        var appropriateCharge = priceManager.LocateMostAppropriateCharge(possibleCharges, energyUsed, from, to);
 
         Assert.That(possibleCharges, Is.Not.Empty);
+        Assert.That(appropriateCharge, Is.Not.Null);
     }
 }

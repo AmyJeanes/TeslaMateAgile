@@ -6,27 +6,31 @@ using TeslaMateAgile.Data.Options;
 using TeslaMateAgile.Data.TeslaMate;
 using TeslaMateAgile.Data.TeslaMate.Entities;
 using TeslaMateAgile.Helpers.Interfaces;
+using TeslaMateAgile.Managers.Interfaces;
 using TeslaMateAgile.Services.Interfaces;
 
-namespace TeslaMateAgile;
+namespace TeslaMateAgile.Managers;
 
-public class PriceHelper : IPriceHelper
+public class PriceManager : IPriceManager
 {
-    private readonly ILogger<PriceHelper> _logger;
+    private readonly ILogger<PriceManager> _logger;
     private readonly TeslaMateDbContext _context;
     private readonly IPriceDataService _priceDataService;
+    private readonly IRateLimitHelper _rateLimitHelper;
     private readonly TeslaMateOptions _teslaMateOptions;
 
-    public PriceHelper(
-        ILogger<PriceHelper> logger,
+    public PriceManager(
+        ILogger<PriceManager> logger,
         TeslaMateDbContext context,
         IPriceDataService priceDataService,
+        IRateLimitHelper rateLimitHelper,
         IOptions<TeslaMateOptions> teslaMateOptions
         )
     {
         _logger = logger;
         _context = context;
         _priceDataService = priceDataService;
+        _rateLimitHelper = rateLimitHelper;
         _teslaMateOptions = teslaMateOptions.Value;
     }
 
@@ -69,6 +73,11 @@ public class PriceHelper : IPriceHelper
 
         foreach (var chargingProcess in chargingProcesses)
         {
+            if (_rateLimitHelper.HasReachedRateLimit())
+            {
+                _logger.LogWarning("Rate limit reached, stopping price calculations for this run, resets at: {RateLimitReset}", _rateLimitHelper.GetNextReset());
+                break;
+            }
             try
             {
                 if (chargingProcess.Charges == null) { _logger.LogError("Could not find charges on charging process {Id}", chargingProcess.Id); continue; }
@@ -79,6 +88,11 @@ public class PriceHelper : IPriceHelper
                     _logger.LogWarning("Mismatch between TeslaMate calculated energy used of {ChargeEnergyUsed} and ours of {Energy}", chargingProcess.ChargeEnergyUsed.Value, energy);
                 }
                 chargingProcess.Cost = cost;
+            }
+            catch (RateLimitException)
+            {
+                _logger.LogWarning("Rate limit reached during price calculation, stopping further price calculations for this run, resets at: {RateLimitReset}", _rateLimitHelper.GetNextReset());
+                break;
             }
             catch (Exception e)
             {
@@ -106,7 +120,9 @@ public class PriceHelper : IPriceHelper
     private async Task<(decimal Price, decimal Energy)> CalculateDynamicChargeCost(IEnumerable<Charge> charges, DateTimeOffset minDate, DateTimeOffset maxDate)
     {
         var dynamicPriceDataService = _priceDataService as IDynamicPriceDataService;
-        var prices = (await dynamicPriceDataService.GetPriceData(minDate, maxDate)).OrderBy(x => x.ValidFrom);
+        var priceData = await dynamicPriceDataService.GetPriceData(minDate, maxDate);
+        var prices = priceData.Prices.OrderBy(x => x.ValidFrom);
+        var requestCount = priceData.RequestCount;
 
         _logger.LogDebug("Retrieved {Count} prices:", prices.Count());
         foreach (var price in prices)
@@ -128,18 +144,18 @@ public class PriceHelper : IPriceHelper
         foreach (var price in prices)
         {
             var chargesForPrice = charges.Where(x => x.Date >= price.ValidFrom && x.Date < price.ValidTo && !processedCharges.Contains(x)).ToList();
-            
+
             // For the last price interval, include charges at the end boundary
             if (price == prices.Last())
             {
                 chargesForPrice.AddRange(charges.Where(x => x.Date == price.ValidTo && !processedCharges.Contains(x)));
             }
-            
+
             if (chargesForPrice.Count == 0)
             {
                 continue;
             }
-            
+
             // Mark these charges as processed to avoid double counting
             foreach (var charge in chargesForPrice)
             {
@@ -168,18 +184,18 @@ public class PriceHelper : IPriceHelper
             {
                 _logger.LogWarning("Unprocessed charge at {Date} UTC", unprocessedCharge.Date.UtcDateTime);
             }
-            
+
             // Check for gaps in price data
             var chargeTimeRange = charges.Select(c => c.Date).OrderBy(d => d);
             var priceTimeRanges = prices.Select(p => new { p.ValidFrom, p.ValidTo }).OrderBy(p => p.ValidFrom);
-            
+
             _logger.LogWarning("Charge time range: {MinTime} UTC to {MaxTime} UTC", chargeTimeRange.First().UtcDateTime, chargeTimeRange.Last().UtcDateTime);
             _logger.LogWarning("Available price intervals:");
             foreach (var priceRange in priceTimeRanges)
             {
                 _logger.LogWarning("  {ValidFrom} UTC - {ValidTo} UTC", priceRange.ValidFrom.UtcDateTime, priceRange.ValidTo.UtcDateTime);
             }
-            
+
             throw new Exception($"Charge calculation failed, pricing calculated for {chargesCalculated} / {chargesCount}, likely missing price data");
         }
         return (Math.Round(totalPrice, 2), Math.Round(totalEnergy, 2));
@@ -191,7 +207,8 @@ public class PriceHelper : IPriceHelper
         var searchMinDate = minDate.AddMinutes(-_teslaMateOptions.MatchingStartToleranceMinutes);
         var searchMaxDate = maxDate.AddMinutes(_teslaMateOptions.MatchingEndToleranceMinutes);
         _logger.LogDebug("Searching for charges between {SearchMinDate} UTC and {SearchMaxDate} UTC", searchMinDate.UtcDateTime, searchMaxDate.UtcDateTime);
-        var possibleCharges = await wholePriceDataService.GetCharges(searchMinDate, searchMaxDate);
+        var providerChargeData = await wholePriceDataService.GetCharges(searchMinDate, searchMaxDate);
+        var possibleCharges = providerChargeData.Charges;
         if (!possibleCharges.Any())
         {
             throw new Exception($"No possible charges found between {searchMinDate} and {searchMaxDate}");

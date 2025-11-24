@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using TeslaMateAgile.Data;
 using TeslaMateAgile.Data.Options;
+using TeslaMateAgile.Helpers.Interfaces;
 using TeslaMateAgile.Services.Interfaces;
 
 namespace TeslaMateAgile.Services;
@@ -10,17 +11,20 @@ namespace TeslaMateAgile.Services;
 public class AwattarService : IDynamicPriceDataService
 {
     private readonly HttpClient _client;
+    private readonly IRateLimitHelper _rateLimitHelper;
     private readonly AwattarOptions _options;
 
-    public AwattarService(HttpClient client, IOptions<AwattarOptions> options)
+    public AwattarService(HttpClient client, IRateLimitHelper rateLimitHelper, IOptions<AwattarOptions> options)
     {
         _client = client;
+        _rateLimitHelper = rateLimitHelper;
         _options = options.Value;
     }
 
-    public async Task<IEnumerable<Price>> GetPriceData(DateTimeOffset from, DateTimeOffset to)
+    public async Task<PriceData> GetPriceData(DateTimeOffset from, DateTimeOffset to)
     {
         var url = $"marketdata?start={from.UtcDateTime.AddHours(-1):o}&end={to.UtcDateTime.AddHours(1):o}";
+        _rateLimitHelper.AddRequest();
         var resp = await _client.GetAsync(url);
         resp.EnsureSuccessStatusCode();
         var agileResponse = await JsonSerializer.DeserializeAsync<AwattarResponse>(await resp.Content.ReadAsStreamAsync());
@@ -32,12 +36,13 @@ public class AwattarService : IDynamicPriceDataService
         {
             throw new Exception($"Unknown price unit(s) detected from aWATTar API: {string.Join(", ", agileResponse.Results.Select(x => x.Unit).Distinct())}");
         }
-        return agileResponse.Results.Select(x => new Price
+
+        return new PriceData(agileResponse.Results.Select(x => new Price
         {
             Value = (x.MarketPrice / 1000) * _options.VATMultiplier,
             ValidFrom = DateTimeOffset.FromUnixTimeSeconds(x.StartTimestamp / 1000),
             ValidTo = DateTimeOffset.FromUnixTimeSeconds(x.EndTimestamp / 1000)
-        });
+        }));
     }
 
     public class AwattarPrice

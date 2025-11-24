@@ -3,27 +3,31 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using TeslaMateAgile.Data;
 using TeslaMateAgile.Data.Options;
+using TeslaMateAgile.Helpers.Interfaces;
 using TeslaMateAgile.Services.Interfaces;
 
 namespace TeslaMateAgile.Services;
 
 public class OctopusService : IDynamicPriceDataService
 {
-    private readonly OctopusOptions _options;
     private readonly HttpClient _client;
+    private readonly IRateLimitHelper _rateLimitHelper;
+    private readonly OctopusOptions _options;
 
-    public OctopusService(HttpClient client, IOptions<OctopusOptions> options)
+    public OctopusService(HttpClient client, IRateLimitHelper rateLimitHelper, IOptions<OctopusOptions> options)
     {
-        _options = options.Value;
         _client = client;
+        _rateLimitHelper = rateLimitHelper;
+        _options = options.Value;
     }
 
-    public async Task<IEnumerable<Price>> GetPriceData(DateTimeOffset from, DateTimeOffset to)
+    public async Task<PriceData> GetPriceData(DateTimeOffset from, DateTimeOffset to)
     {
         var url = $"products/{_options.ProductCode}/electricity-tariffs/{_options.TariffCode}-{_options.RegionCode}/standard-unit-rates?period_from={from.UtcDateTime:o}&period_to={to.UtcDateTime:o}";
         var list = new List<AgilePrice>();
         do
         {
+            _rateLimitHelper.AddRequest();
             var resp = await _client.GetAsync(url);
             resp.EnsureSuccessStatusCode();
             var agileResponse = await JsonSerializer.DeserializeAsync<AgileResponse>(await resp.Content.ReadAsStreamAsync()) ?? throw new Exception($"Deserialization of Octopus Agile API response failed");
@@ -39,13 +43,13 @@ public class OctopusService : IDynamicPriceDataService
             }
         }
         while (true);
-        return list
+        return new PriceData(list
             .Select(x => new Price
             {
                 Value = x.ValueIncVAT / 100,
                 ValidFrom = x.ValidFrom,
                 ValidTo = x.ValidTo
-            });
+            }));
     }
 
     public class AgilePrice

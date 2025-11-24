@@ -1,8 +1,8 @@
 ﻿using TeslaMateAgile.Data.TeslaMate.Entities;
 
-namespace TeslaMateAgile.Helpers.Interfaces;
+namespace TeslaMateAgile.Managers.Interfaces;
 
-public interface IPriceHelper
+public interface IPriceManager
 {
     Task<(decimal Price, decimal Energy)> CalculateChargeCost(IEnumerable<Charge> charges);
     decimal CalculateEnergyUsed(IEnumerable<Charge> charges, decimal phases);

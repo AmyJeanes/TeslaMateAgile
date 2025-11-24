@@ -310,7 +310,7 @@ namespace TeslaMateAgile.Tests.Services
             Console.WriteLine($"Running get price data test '{testName}'");
             var fixedPriceWeeklyService = Setup(timeZone, fixedPrices);
             var result = await fixedPriceWeeklyService.GetPriceData(from, to);
-            var actualPrices = result.OrderBy(x => x.ValidFrom).ToList();
+            var actualPrices = result.Prices.OrderBy(x => x.ValidFrom).ToList();
             Assert.That(actualPrices.Count(), Is.EqualTo(expectedPrices.Count));
             for (var i = 0; i < actualPrices.Count(); i++)
             {

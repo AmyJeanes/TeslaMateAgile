@@ -3,7 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TeslaMateAgile.Data.Options;
-using TeslaMateAgile.Helpers.Interfaces;
+using TeslaMateAgile.Managers.Interfaces;
 
 namespace TeslaMateAgile;
 
@@ -54,8 +54,8 @@ public class PriceService : IHostedService, IDisposable
         {
             using (var scope = _serviceProvider.CreateScope())
             {
-                var priceHelper = scope.ServiceProvider.GetRequiredService<IPriceHelper>();
-                await priceHelper.Update();
+                var priceManager = scope.ServiceProvider.GetRequiredService<IPriceManager>();
+                await priceManager.Update();
             }
             _logger.LogDebug("Price update complete");
         }

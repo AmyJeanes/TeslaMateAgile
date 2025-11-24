@@ -29,4 +29,10 @@ public class TeslaMateOptions
 
     [Range(0, 1)]
     public decimal MatchingEnergyToleranceRatio { get; set; }
+
+    [Range(0, int.MaxValue)]
+    public int RateLimitMaxRequests { get; set; }
+
+    [Range(0, int.MaxValue)]
+    public int RateLimitPeriodSeconds { get; set; }
 }

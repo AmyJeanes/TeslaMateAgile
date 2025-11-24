@@ -4,6 +4,7 @@ using Moq;
 using Moq.Contrib.HttpClient;
 using NUnit.Framework;
 using TeslaMateAgile.Data.Options;
+using TeslaMateAgile.Helpers.Interfaces;
 using TeslaMateAgile.Services;
 
 namespace TeslaMateAgile.Tests.Services;
@@ -12,6 +13,7 @@ public class HomeAssistantServiceTests
 {
     private HomeAssistantService _subject;
     private Mock<HttpMessageHandler> _handler;
+    private Mock<IRateLimitHelper> _rateLimitHelper;
 
     [SetUp]
     public void Setup()
@@ -20,9 +22,10 @@ public class HomeAssistantServiceTests
         var httpClient = _handler.CreateClient();
         var homeAssistantOptions = Options.Create(new HomeAssistantOptions { BaseUrl = "http://homeassistant", EntityId = "input_number.test" });
         httpClient.BaseAddress = new Uri(homeAssistantOptions.Value.BaseUrl);
+        _rateLimitHelper = new Mock<IRateLimitHelper>();
         var teslaMateOptions = Options.Create(new TeslaMateOptions { });
-        var logger = new Mock<ILogger<HomeAssistantService>>();
-        _subject = new HomeAssistantService(httpClient, homeAssistantOptions, teslaMateOptions, logger.Object);
+        var mockLogger = new Mock<ILogger<HomeAssistantService>>();
+        _subject = new HomeAssistantService(httpClient, _rateLimitHelper.Object, homeAssistantOptions, teslaMateOptions, mockLogger.Object);
     }
 
     [Test]
@@ -36,10 +39,11 @@ public class HomeAssistantServiceTests
 
         var startDate = DateTimeOffset.Parse("2023-08-24T23:43:53Z");
         var endDate = DateTimeOffset.Parse("2023-08-25T03:19:42Z");
-        var prices = await _subject.GetPriceData(startDate, endDate);
-        var priceList = prices.ToList();
+        var priceData = await _subject.GetPriceData(startDate, endDate);
+        var priceList = priceData.Prices.ToList();
 
         _handler.VerifyAnyRequest(Times.Once());
+        _rateLimitHelper.Verify(x => x.AddRequest(), Times.Once);
 
         Assert.That(priceList.Count, Is.EqualTo(1));
         Assert.That(priceList[0].ValidFrom, Is.EqualTo(startDate));

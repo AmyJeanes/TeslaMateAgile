@@ -24,7 +24,7 @@ namespace TeslaMateAgile.Services
         public MontaService(HttpClient client, IRateLimitHelper rateLimitHelper, IOptions<MontaOptions> options)
         {
             _client = client;
-            _rateLimitHelper = rateLimitHelper;
+            _rateLimitHelper = rateLimitHelper.Configure(this);
             _options = options.Value;
         }
 

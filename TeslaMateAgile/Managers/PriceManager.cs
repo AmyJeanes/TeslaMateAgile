@@ -75,7 +75,7 @@ public class PriceManager : IPriceManager
         {
             if (_rateLimitHelper.HasReachedRateLimit())
             {
-                _logger.LogWarning("Rate limit reached, stopping price calculations for this run");
+                _logger.LogWarning("Rate limit reached, stopping price calculations for this run, resets at: {RateLimitReset}", _rateLimitHelper.GetNextReset());
                 break;
             }
             try
@@ -91,7 +91,7 @@ public class PriceManager : IPriceManager
             }
             catch (RateLimitException)
             {
-                _logger.LogWarning("Rate limit reached during price calculation, stopping further price calculations for this run");
+                _logger.LogWarning("Rate limit reached during price calculation, stopping further price calculations for this run, resets at: {RateLimitReset}", _rateLimitHelper.GetNextReset());
                 break;
             }
             catch (Exception e)

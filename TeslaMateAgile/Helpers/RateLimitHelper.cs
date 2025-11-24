@@ -9,28 +9,35 @@ namespace TeslaMateAgile.Helpers;
 public class RateLimitHelper : IRateLimitHelper
 {
     private readonly ILogger<RateLimitHelper> _logger;
-    private readonly int _rateLimitMaxRequests;
-    private readonly int _rateLimitPeriodSeconds;
+    private readonly TeslaMateOptions _teslaMateOptions;
 
+    private int _rateLimitMaxRequests;
+    private int _rateLimitPeriodSeconds;
     private int _currentRequestCount = 0;
-    private DateTime _periodStartTime = DateTime.UtcNow;
+    private DateTimeOffset _periodStartTime = DateTime.UtcNow;
 
     public RateLimitHelper(
         ILogger<RateLimitHelper> logger,
-        IOptions<TeslaMateOptions> teslaMateOptions,
-        IPriceDataService priceDataService
+        IOptions<TeslaMateOptions> teslaMateOptions
        )
     {
         _logger = logger;
-        var rateLimitedService = priceDataService as IRateLimitedService;
-        _rateLimitMaxRequests = rateLimitedService?.DefaultRateLimitMaxRequests ?? teslaMateOptions.Value.RateLimitMaxRequests;
-        _rateLimitPeriodSeconds = rateLimitedService?.DefaultRateLimitPeriodSeconds ?? teslaMateOptions.Value.RateLimitPeriodSeconds;
+        _teslaMateOptions = teslaMateOptions.Value;
+        _rateLimitMaxRequests = _teslaMateOptions.RateLimitMaxRequests;
+        _rateLimitPeriodSeconds = _teslaMateOptions.RateLimitPeriodSeconds;
+    }
+
+    public IRateLimitHelper Configure(IRateLimitedService rateLimitedService)
+    {
+        _rateLimitMaxRequests = rateLimitedService?.DefaultRateLimitMaxRequests ?? _teslaMateOptions.RateLimitMaxRequests;
+        _rateLimitPeriodSeconds = rateLimitedService?.DefaultRateLimitPeriodSeconds ?? _teslaMateOptions.RateLimitPeriodSeconds;
+        return this;
     }
 
     public void AddRequest()
     {
-        CheckPeriod();
-        if (_currentRequestCount + 1 >= _rateLimitMaxRequests)
+        if (!Check()) return;
+        if (_currentRequestCount + 1 > _rateLimitMaxRequests)
         {
             throw new RateLimitException();
         }
@@ -39,12 +46,24 @@ public class RateLimitHelper : IRateLimitHelper
 
     public bool HasReachedRateLimit()
     {
-        CheckPeriod();
+        if (!Check()) return false;
         return _currentRequestCount >= _rateLimitMaxRequests;
     }
 
-    private void CheckPeriod()
+    public DateTimeOffset GetNextReset()
     {
+        if (!Check()) throw new InvalidOperationException();
+        var nextReset = _periodStartTime.AddSeconds(_rateLimitPeriodSeconds);
+        return nextReset;
+    }
+
+    private bool Check()
+    {
+        if (_rateLimitMaxRequests <= 0 || _rateLimitPeriodSeconds <= 0)
+        {
+            _logger.LogDebug("Rate limiting is disabled");
+            return false;
+        }
         var now = DateTime.UtcNow;
         var elapsedSeconds = (now - _periodStartTime).TotalSeconds;
         if (elapsedSeconds > _rateLimitPeriodSeconds)
@@ -53,5 +72,6 @@ public class RateLimitHelper : IRateLimitHelper
             _periodStartTime = now;
             _currentRequestCount = 0;
         }
+        return true;
     }
 }

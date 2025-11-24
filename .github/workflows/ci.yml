@@ -40,14 +40,16 @@ jobs:
         
     - name: Build Docker images
       run: |
+        arches=(amd64 arm32v7 arm64v8)
         for appname in TeslaMateAgile; do
           app=`echo $appname | tr '[:upper:]' '[:lower:]'`
-          echo "Building $appname docker amd64"
-          docker build -t $app:amd64 -f "$appname/Dockerfile" . --build-arg arch=noble-amd64
-          echo "Building $appname docker arm32v7"
-          docker build -t $app:arm32v7 -f "$appname/Dockerfile" . --build-arg arch=noble-arm32v7
-          echo "Building $appname docker arm64v8"
-          docker build -t $app:arm64v8 -f "$appname/Dockerfile" . --build-arg arch=noble-arm64v8
+          for arch in "${arches[@]}"; do
+            buildArg="noble-$arch"
+            echo "Building $appname image for $arch"
+            docker build -t $app:$arch -f "$appname/Dockerfile" . --build-arg arch=$buildArg
+            echo "Building $appname image for $arch with legacy image warning"
+            docker build -t $app:legacy-$arch -f "$appname/Dockerfile" . --build-arg arch=$buildArg --build-arg legacy_image_warning=true
+          done
         done
       
     - name: Upload a Build Artifact
@@ -83,8 +85,8 @@ jobs:
           versions=()
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
             for arch in amd64 arm32v7 arm64v8; do
-              docker tag $app:$arch $DOCKER_USERNAME/$app:latest-$arch
-              docker tag $app:$arch $DOCKER_USERNAME/$app:$VERSION-$arch
+              docker tag $app:legacy-$arch $DOCKER_USERNAME/$app:latest-$arch
+              docker tag $app:legacy-$arch $DOCKER_USERNAME/$app:$VERSION-$arch
             done
             versions=($VERSION)
             if [[ $VERSION =~ "-" ]]; then
@@ -95,7 +97,7 @@ jobs:
             fi
           elif [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
             for arch in amd64 arm32v7 arm64v8; do
-              docker tag $app:$arch $DOCKER_USERNAME/$app:edge-$arch
+              docker tag $app:legacy-$arch $DOCKER_USERNAME/$app:edge-$arch
             done
             versions=("edge")
             echo "Main branch detected, tagging as edge"

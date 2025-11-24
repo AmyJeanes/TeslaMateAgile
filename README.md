@@ -340,3 +340,21 @@ To workaround this issue, you can set the `TeslaMate__Phases` environment variab
 ### Why am I seeing warnings about rate limits?
 
 If you have enabled rate limiting using the `TeslaMate__RateLimitMaxRequests` and `TeslaMate__RateLimitPeriodSeconds` or your energy provider has default rate limits configured (e.g. Monta), TeslaMateAgile automatically backs off the providers API to avoid getting blocked.
+
+### Why am I seeing a warning about using a legacy docker image?
+
+If you are seeing a warning in the logs like this:
+
+```
+warn: TeslaMateAgile.PriceService[0] You are using an outdated docker repository. See GitHub for more information: https://github.com/AmyJeanes/TeslaMateAgile#legacy-image-warning
+```
+
+This is because you are using the old `mattjeanes/teslamateagile` Docker image. Please switch to the new  `ghcr.io/amyjeanes/teslamateagile` image in your Docker environment.
+
+If using a `docker-compose.yml` file, change the `image:` line to:
+
+```yaml
+services:
+  teslamateagile:
+    image: ghcr.io/amyjeanes/teslamateagile:latest
+```

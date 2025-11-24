@@ -23,6 +23,12 @@ public class PriceService : IHostedService, IDisposable
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        var legacyImageWarning = Environment.GetEnvironmentVariable("TESLAMATE_LEGACY_IMAGE_WARNING");
+        if (bool.TryParse(legacyImageWarning, out var warningEnabled) && warningEnabled)
+        {
+            _logger.LogWarning("You are using an old docker image repository. See GitHub for more information: https://github.com/AmyJeanes/TeslaMateAgile#why-am-i-seeing-a-warning-about-using-a-legacy-docker-image");
+        }
+
         if (_options.UpdateIntervalSeconds <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(_options.UpdateIntervalSeconds), _options.UpdateIntervalSeconds, "Must be greater than 0");

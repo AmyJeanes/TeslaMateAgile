@@ -1,6 +1,9 @@
 ARG arch=noble
+ARG legacy_image_warning=""
 
 FROM mcr.microsoft.com/dotnet/runtime:10.0-${arch} AS base
+ARG legacy_image_warning
+ENV TESLAMATE_LEGACY_IMAGE_WARNING=${legacy_image_warning}
 USER app
 WORKDIR /app
 

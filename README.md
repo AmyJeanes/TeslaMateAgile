@@ -182,6 +182,8 @@ Note: Pricing is published daily at 6pm Pacific Time for the following day. Make
 - TeslaMate__MatchingStartToleranceMinutes=30 # Tolerance in minutes for matching charge times for whole cost providers (default: 30)
 - TeslaMate__MatchingEndToleranceMinutes=120 # Tolerance in minutes for matching charge times for whole cost providers (default: 30)
 - TeslaMate__MatchingEnergyToleranceRatio=0.1 # Tolerance ratio for matching energy for whole cost providers that provide energy data (default: 0.1)
+- TeslaMate__RateLimitMaxRequests=10 # Max requests per period for rate limiting, must also set RateLimitPeriodSeconds (default: 0 = no limit)
+- TeslaMate__RateLimitPeriodSeconds=60 # Period in seconds for rate limiting, must also set RateLimitMaxRequests (default: 0 = no limit)
 ```
 
 ## Database connection
@@ -334,6 +336,10 @@ info: TeslaMateAgile.PriceManager[0] Calculated cost 0 and energy 0 kWh for char
 ```
 
 To workaround this issue, you can set the `TeslaMate__Phases` environment variable to override the auto-detection, this will allow short charges to be calculated correctly as long as you set the correct number of phases.
+
+### Why am I seeing warnings about rate limits?
+
+If you have enabled rate limiting using the `TeslaMate__RateLimitMaxRequests` and `TeslaMate__RateLimitPeriodSeconds` or your energy provider has default rate limits configured (e.g. Monta), TeslaMateAgile automatically backs off the providers API to avoid getting blocked.
 
 ## Docker support
 This project is available on Docker

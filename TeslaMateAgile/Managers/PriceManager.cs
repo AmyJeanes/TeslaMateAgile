@@ -218,7 +218,13 @@ public class PriceManager : IPriceManager
         {
             _logger.LogDebug("{StartTime} UTC - {EndTime} UTC: {Cost}", charge.StartTime.UtcDateTime, charge.EndTime.UtcDateTime, charge.Cost);
         }
-        var wholeChargeEnergy = CalculateEnergyUsed(charges, ((decimal?)_teslaMateOptions.Phases) ?? DeterminePhases(charges).Value);
+        var phases = ((decimal?)_teslaMateOptions.Phases) ?? DeterminePhases(charges);
+        if (!phases.HasValue)
+        {
+            _logger.LogWarning("Unable to determine phases for charges");
+            return (0, 0);
+        }
+        var wholeChargeEnergy = CalculateEnergyUsed(charges, phases.Value);
         var mostAppropriateCharge = LocateMostAppropriateCharge(possibleCharges, wholeChargeEnergy, minDate, maxDate);
         return (Math.Round(mostAppropriateCharge.Cost, 2), Math.Round(wholeChargeEnergy, 2));
     }

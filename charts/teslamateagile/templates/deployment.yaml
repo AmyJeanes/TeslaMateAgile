@@ -19,7 +19,7 @@ spec:
     metadata: 
       labels: 
         app: teslamateagile
-        {{- if eq .Values.image.tag "latest" }}
+        {{- if or (eq .Values.image.tag "latest") (eq .Values.image.tag "edge") }}
         date: "{{ now | unixEpoch }}"
         {{- end }}
       annotations:

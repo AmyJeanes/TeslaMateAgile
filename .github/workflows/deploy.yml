@@ -23,7 +23,9 @@ jobs:
         helm upgrade --install --wait --atomic \
           teslamateagile ./charts/teslamateagile \
           --namespace default \
-          --values abyss.values.yaml
+          --values abyss.values.yaml \
+          --set image.tag=edge \
+          --set image.pullPolicy=Always
 
     - name: Disconnect from Kubernetes
       if: always()

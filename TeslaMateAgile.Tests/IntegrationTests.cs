@@ -179,5 +179,6 @@ public class IntegrationTests
         var appropriateCharge = priceManager.LocateMostAppropriateCharge(possibleCharges, energyUsed, from, to);
 
         Assert.That(possibleCharges, Is.Not.Empty);
+        Assert.That(appropriateCharge, Is.Not.Null);
     }
 }

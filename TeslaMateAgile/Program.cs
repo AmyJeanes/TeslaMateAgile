@@ -90,6 +90,7 @@ public class Program
                     .ValidateDataAnnotations()
                     .ValidateOnStart();
                 services.AddTransient<IPriceManager, PriceManager>();
+                services.AddSingleton(TimeProvider.System);
                 services.AddSingleton<IRateLimitHelper, RateLimitHelper>();
                 services.AddHttpClient();
 

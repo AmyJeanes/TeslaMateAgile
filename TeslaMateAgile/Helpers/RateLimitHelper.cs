@@ -11,20 +11,24 @@ public class RateLimitHelper : IRateLimitHelper
     private readonly ILogger<RateLimitHelper> _logger;
     private readonly TeslaMateOptions _teslaMateOptions;
 
+    private readonly TimeProvider _timeProvider;
     private int _rateLimitMaxRequests;
     private int _rateLimitPeriodSeconds;
     private int _currentRequestCount = 0;
-    private DateTimeOffset _periodStartTime = DateTime.UtcNow;
+    private DateTimeOffset _periodStartTime;
 
     public RateLimitHelper(
         ILogger<RateLimitHelper> logger,
-        IOptions<TeslaMateOptions> teslaMateOptions
+        IOptions<TeslaMateOptions> teslaMateOptions,
+        TimeProvider timeProvider
        )
     {
         _logger = logger;
         _teslaMateOptions = teslaMateOptions.Value;
+        _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         _rateLimitMaxRequests = _teslaMateOptions.RateLimitMaxRequests;
         _rateLimitPeriodSeconds = _teslaMateOptions.RateLimitPeriodSeconds;
+        _periodStartTime = _timeProvider.GetUtcNow();
     }
 
     public IRateLimitHelper Configure(IRateLimitedService rateLimitedService)
@@ -64,7 +68,7 @@ public class RateLimitHelper : IRateLimitHelper
             _logger.LogDebug("Rate limiting is disabled");
             return false;
         }
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var elapsedSeconds = (now - _periodStartTime).TotalSeconds;
         if (elapsedSeconds > _rateLimitPeriodSeconds)
         {

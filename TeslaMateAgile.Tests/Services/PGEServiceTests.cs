@@ -13,6 +13,7 @@ public class PGEServiceTests
 {
     private PGEService _subject;
     private Mock<HttpMessageHandler> _handler;
+    private Mock<IRateLimitHelper> _rateLimitHelper;
 
     [SetUp]
     public void Setup()
@@ -30,9 +31,9 @@ public class PGEServiceTests
         });
         httpClient.BaseAddress = new Uri(pgeOptions.Value.BaseUrl);
 
-        var mockRateLimitHelper = new Mock<IRateLimitHelper>();
+        _rateLimitHelper = new Mock<IRateLimitHelper>();
         var mockLogger = new Mock<ILogger<PGEService>>();
-        _subject = new PGEService(httpClient, mockRateLimitHelper.Object, pgeOptions, mockLogger.Object);
+        _subject = new PGEService(httpClient, _rateLimitHelper.Object, pgeOptions, mockLogger.Object);
     }
 
     [Test]
@@ -85,6 +86,8 @@ public class PGEServiceTests
         Assert.That(exactMatches[4].ValidFrom, Is.EqualTo(DateTimeOffset.Parse("2023-10-26T04:00:00-07:00")));
         Assert.That(exactMatches[4].ValidTo, Is.EqualTo(DateTimeOffset.Parse("2023-10-26T05:00:00-07:00")));
         Assert.That(exactMatches[4].Value, Is.EqualTo(0.14456M));
+
+        _rateLimitHelper.Verify(x => x.AddRequest(), Times.Exactly(3));
     }
 
     [Test]

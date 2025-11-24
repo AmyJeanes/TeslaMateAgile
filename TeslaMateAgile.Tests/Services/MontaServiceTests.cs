@@ -6,6 +6,7 @@ using System.Text.Json;
 using TeslaMateAgile.Data.Options;
 using TeslaMateAgile.Helpers.Interfaces;
 using TeslaMateAgile.Services;
+using TeslaMateAgile.Services.Interfaces;
 
 namespace TeslaMateAgile.Tests.Services
 {
@@ -13,6 +14,7 @@ namespace TeslaMateAgile.Tests.Services
     {
         private MontaService _subject;
         private Mock<HttpMessageHandler> _handler;
+        private Mock<IRateLimitHelper> _rateLimitHelper;
 
         [SetUp]
         public void Setup()
@@ -27,8 +29,9 @@ namespace TeslaMateAgile.Tests.Services
                 ChargePointId = 123
             });
             httpClient.BaseAddress = new Uri(montaOptions.Value.BaseUrl);
-            var rateLimitHelper = new Mock<IRateLimitHelper>().Object;
-            _subject = new MontaService(httpClient, rateLimitHelper, montaOptions);
+            _rateLimitHelper = new Mock<IRateLimitHelper>();
+            _rateLimitHelper.Setup(x => x.Configure(It.IsAny<IRateLimitedService>())).Returns(_rateLimitHelper.Object);
+            _subject = new MontaService(httpClient, _rateLimitHelper.Object, montaOptions);
         }
 
         [Test]
@@ -71,6 +74,7 @@ namespace TeslaMateAgile.Tests.Services
             Assert.That(charges.First().EnergyKwh, Is.EqualTo(15.0M));
             Assert.That(charges.First().StartTime, Is.EqualTo(from));
             Assert.That(charges.First().EndTime, Is.EqualTo(to));
+            _rateLimitHelper.Verify(x => x.AddRequest(), Times.Exactly(2));
         }
 
         [Test]
@@ -86,9 +90,10 @@ namespace TeslaMateAgile.Tests.Services
                 ClientSecret = "test-client-secret"
             });
 
-            var rateLimitHelper = new Mock<IRateLimitHelper>().Object;
+            var rateLimitHelperMock = new Mock<IRateLimitHelper>();
+            rateLimitHelperMock.Setup(x => x.Configure(It.IsAny<IRateLimitedService>())).Returns(rateLimitHelperMock.Object);
 
-            _subject = new MontaService(_handler.CreateClient(), rateLimitHelper, montaOptions);
+            _subject = new MontaService(_handler.CreateClient(), rateLimitHelperMock.Object, montaOptions);
 
             var accessTokenResponse = new
             {
@@ -124,6 +129,7 @@ namespace TeslaMateAgile.Tests.Services
             Assert.That(charges.First().EnergyKwh, Is.EqualTo(15.0M));
             Assert.That(charges.First().StartTime, Is.EqualTo(from));
             Assert.That(charges.First().EndTime, Is.EqualTo(to));
+            rateLimitHelperMock.Verify(x => x.AddRequest(), Times.Exactly(2));
         }
     }
 }

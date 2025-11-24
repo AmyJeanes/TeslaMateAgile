@@ -9,6 +9,7 @@ using TeslaMateAgile.Data;
 using TeslaMateAgile.Data.Options;
 using TeslaMateAgile.Data.TeslaMate;
 using TeslaMateAgile.Data.TeslaMate.Entities;
+using TeslaMateAgile.Helpers.Interfaces;
 using TeslaMateAgile.Managers;
 using TeslaMateAgile.Services.Interfaces;
 
@@ -241,6 +242,157 @@ public class PriceManagerTests
         _subject = _mocker.CreateInstance<PriceManager>();
         var mostAppropriateCharge = _subject.LocateMostAppropriateCharge(providerCharges, energyUsed, minDate, maxDate);
         Assert.That(expectedCost, Is.EqualTo(mostAppropriateCharge.Cost));
+    }
+
+    [Test]
+    public async Task PriceManager_Update_StopsWhenRateLimitAlreadyReached()
+    {
+        using var context = CreateInMemoryContext();
+        context.Geofences.Add(new Geofence { Id = 1, Name = "Home" });
+        var charge = new Charge
+        {
+            Id = 1,
+            ChargeEnergyAdded = 1,
+            ChargerPower = 1,
+#pragma warning disable CS0618
+            DateInternal = DateTime.UtcNow.AddHours(-2)
+#pragma warning restore CS0618
+        };
+        var processEntity = new ChargingProcess
+        {
+            Id = 1,
+            GeofenceId = 1,
+            StartDate = DateTime.UtcNow.AddHours(-2),
+            EndDate = DateTime.UtcNow.AddHours(-1),
+            Charges = new List<Charge> { charge }
+        };
+        charge.ChargingProcess = processEntity;
+        context.ChargingProcesses.Add(processEntity);
+        context.SaveChanges();
+
+        var mockRateLimitHelper = new Mock<IRateLimitHelper>();
+        mockRateLimitHelper.Setup(x => x.HasReachedRateLimit()).Returns(true);
+        mockRateLimitHelper.Setup(x => x.GetNextReset()).Returns(DateTimeOffset.Parse("2024-01-01T00:00:00Z"));
+
+        var mockLogger = new Mock<ILogger<PriceManager>>();
+
+        var options = Options.Create(new TeslaMateOptions
+        {
+            GeofenceId = 1,
+            MatchingStartToleranceMinutes = 30,
+            MatchingEndToleranceMinutes = 120,
+            MatchingEnergyToleranceRatio = 0.1M,
+            RateLimitMaxRequests = 2,
+            RateLimitPeriodSeconds = 60
+        });
+
+        SetupDynamicPriceDataService();
+        _mocker.Use(context);
+        _mocker.Use(mockRateLimitHelper.Object);
+        _mocker.Use(mockLogger.Object);
+        _mocker.Use(options);
+
+        _subject = _mocker.CreateInstance<PriceManager>();
+
+        await _subject.Update();
+
+        mockRateLimitHelper.Verify(x => x.HasReachedRateLimit(), Times.Once);
+        mockRateLimitHelper.Verify(x => x.GetNextReset(), Times.Once);
+
+        mockLogger.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("Rate limit reached, stopping price calculations for this run")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception, string>>()),
+            Times.Once);
+
+        var process = context.ChargingProcesses.Single();
+        Assert.That(process.Cost, Is.Null);
+    }
+
+    [Test]
+    public async Task PriceManager_Update_HandlesRateLimitExceptionDuringProcessing()
+    {
+        using var context = CreateInMemoryContext();
+        context.Geofences.Add(new Geofence { Id = 1, Name = "Home" });
+        var charge = new Charge
+        {
+            Id = 1,
+            ChargeEnergyAdded = 1,
+            ChargerPower = 1,
+#pragma warning disable CS0618
+            DateInternal = DateTime.UtcNow.AddHours(-2)
+#pragma warning restore CS0618
+        };
+        var processEntity = new ChargingProcess
+        {
+            Id = 1,
+            GeofenceId = 1,
+            StartDate = DateTime.UtcNow.AddHours(-2),
+            EndDate = DateTime.UtcNow.AddHours(-1),
+            Charges = new List<Charge> { charge }
+        };
+        charge.ChargingProcess = processEntity;
+        context.ChargingProcesses.Add(processEntity);
+        context.SaveChanges();
+
+        var resetTime = DateTimeOffset.Parse("2024-01-01T01:00:00Z");
+        var mockRateLimitHelper = new Mock<IRateLimitHelper>();
+        mockRateLimitHelper.SetupSequence(x => x.HasReachedRateLimit())
+            .Returns(false)
+            .Returns(false);
+        mockRateLimitHelper.Setup(x => x.GetNextReset()).Returns(resetTime);
+
+        var mockLogger = new Mock<ILogger<PriceManager>>();
+
+        var priceDataService = new Mock<IPriceDataService>();
+        priceDataService
+            .As<IDynamicPriceDataService>()
+            .Setup(x => x.GetPriceData(It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>()))
+            .ThrowsAsync(new RateLimitException());
+
+        var options = Options.Create(new TeslaMateOptions
+        {
+            GeofenceId = 1,
+            MatchingStartToleranceMinutes = 30,
+            MatchingEndToleranceMinutes = 120,
+            MatchingEnergyToleranceRatio = 0.1M,
+            RateLimitMaxRequests = 2,
+            RateLimitPeriodSeconds = 60
+        });
+
+        _mocker.Use(context);
+        _mocker.Use(mockRateLimitHelper.Object);
+        _mocker.Use(mockLogger.Object);
+        _mocker.Use(priceDataService.Object);
+        _mocker.Use(options);
+
+        _subject = _mocker.CreateInstance<PriceManager>();
+
+        await _subject.Update();
+
+        mockRateLimitHelper.Verify(x => x.GetNextReset(), Times.Once);
+        mockLogger.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("Rate limit reached during price calculation")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception, string>>()),
+            Times.Once);
+
+        var process = context.ChargingProcesses.Single();
+        Assert.That(process.Cost, Is.Null);
+    }
+
+    private static TeslaMateDbContext CreateInMemoryContext()
+    {
+        var options = new DbContextOptionsBuilder<TeslaMateDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        return new TeslaMateDbContext(options);
     }
 
     private void SetupDynamicPriceDataService(List<Price> prices = null)

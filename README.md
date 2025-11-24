@@ -346,7 +346,7 @@ If you have enabled rate limiting using the `TeslaMate__RateLimitMaxRequests` an
 If you are seeing a warning in the logs like this:
 
 ```
-warn: TeslaMateAgile.PriceService[0] You are using an outdated docker repository. See GitHub for more information: https://github.com/AmyJeanes/TeslaMateAgile#legacy-image-warning
+warn: TeslaMateAgile.PriceService[0] You are using an outdated docker repository. See GitHub for more information: https://github.com/AmyJeanes/TeslaMateAgile#why-am-i-seeing-a-warning-about-using-a-legacy-docker-image
 ```
 
 This is because you are using the old `mattjeanes/teslamateagile` Docker image. Please switch to the new  `ghcr.io/amyjeanes/teslamateagile` image in your Docker environment.

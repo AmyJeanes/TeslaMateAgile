@@ -8,6 +8,7 @@ using System.Text;
 using System.Text.Json;
 using TeslaMateAgile.Data;
 using TeslaMateAgile.Data.Options;
+using TeslaMateAgile.Helpers.Interfaces;
 using TeslaMateAgile.Services.Interfaces;
 
 namespace TeslaMateAgile.Services;
@@ -15,6 +16,7 @@ namespace TeslaMateAgile.Services;
 public class TibberService : IDynamicPriceDataService
 {
     private readonly HttpClient _client;
+    private readonly IRateLimitHelper _rateLimitHelper;
     private readonly GraphQLHttpClientOptions _graphQLHttpClientOptions;
     private readonly TibberOptions _options;
     private readonly IGraphQLJsonSerializer _graphQLJsonSerializer;
@@ -23,17 +25,19 @@ public class TibberService : IDynamicPriceDataService
 
     public TibberService(
         HttpClient client,
+        IRateLimitHelper rateLimitHelper,
         IGraphQLJsonSerializer graphQLJsonSerializer,
         IOptions<TibberOptions> options
         )
     {
         _client = client;
+        _rateLimitHelper = rateLimitHelper;
         _options = options.Value;
         _graphQLHttpClientOptions = new GraphQLHttpClientOptions { EndPoint = new Uri(_options.BaseUrl), DefaultUserAgentRequestHeader = _userAgent };
         _graphQLJsonSerializer = graphQLJsonSerializer;
     }
 
-    public async Task<IEnumerable<Price>> GetPriceData(DateTimeOffset from, DateTimeOffset to)
+    public async Task<PriceData> GetPriceData(DateTimeOffset from, DateTimeOffset to)
     {
         var fetch = (int)Math.Ceiling((to - from).TotalHours) + 2;
         var request = new GraphQLHttpRequest
@@ -126,12 +130,13 @@ query PriceData($after: String, $first: Int) {
             throw new Exception($"Mismatch of requested price info from Tibber API (expected: {fetch}, actual: {count})");
         }
 
-        return prices;
+        return new PriceData(prices);
     }
 
     private async Task<GraphQLHttpResponse<ResponseType>> SendRequest(GraphQLHttpRequest request)
     {
         using var httpRequestMessage = request.ToHttpRequestMessage(_graphQLHttpClientOptions, _graphQLJsonSerializer);
+        _rateLimitHelper.AddRequest();
         using var httpResponseMessage = await _client.SendAsync(httpRequestMessage);
         var contentStream = await httpResponseMessage.Content.ReadAsStreamAsync();
         if (httpResponseMessage.IsSuccessStatusCode)

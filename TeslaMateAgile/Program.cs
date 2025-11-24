@@ -11,7 +11,10 @@ using System.Data.Common;
 using TeslaMateAgile.Data.Enums;
 using TeslaMateAgile.Data.Options;
 using TeslaMateAgile.Data.TeslaMate;
+using TeslaMateAgile.Helpers;
 using TeslaMateAgile.Helpers.Interfaces;
+using TeslaMateAgile.Managers;
+using TeslaMateAgile.Managers.Interfaces;
 using TeslaMateAgile.Services;
 using TeslaMateAgile.Services.Interfaces;
 
@@ -86,7 +89,8 @@ public class Program
                     .Bind(config.GetSection("TeslaMate"))
                     .ValidateDataAnnotations()
                     .ValidateOnStart();
-                services.AddTransient<IPriceHelper, PriceHelper>();
+                services.AddTransient<IPriceManager, PriceManager>();
+                services.AddSingleton<IRateLimitHelper, RateLimitHelper>();
                 services.AddHttpClient();
 
                 var energyProvider = config.GetValue("TeslaMate:EnergyProvider", EnergyProvider.Octopus);

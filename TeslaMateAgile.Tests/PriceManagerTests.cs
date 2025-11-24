@@ -9,14 +9,15 @@ using TeslaMateAgile.Data;
 using TeslaMateAgile.Data.Options;
 using TeslaMateAgile.Data.TeslaMate;
 using TeslaMateAgile.Data.TeslaMate.Entities;
+using TeslaMateAgile.Managers;
 using TeslaMateAgile.Services.Interfaces;
 
 namespace TeslaMateAgile.Tests;
 
-public class PriceHelperTests
+public class PriceManagerTests
 {
     private AutoMocker _mocker;
-    private PriceHelper _subject;
+    private PriceManager _subject;
 
     [SetUp]
     public void Setup()
@@ -29,7 +30,7 @@ public class PriceHelperTests
         var logger = new ServiceCollection()
             .AddLogging(x => x.AddConsole().SetMinimumLevel(LogLevel.Debug))
             .BuildServiceProvider()
-            .GetRequiredService<ILogger<PriceHelper>>();
+            .GetRequiredService<ILogger<PriceManager>>();
         _mocker.Use(logger);
 
         var teslaMateOptions = Options.Create(new TeslaMateOptions()
@@ -41,7 +42,7 @@ public class PriceHelperTests
         _mocker.Use(teslaMateOptions);
     }
 
-    private static readonly object[][] PriceHelper_CalculateChargeCost_Cases = new object[][] {
+    private static readonly object[][] PriceManager_CalculateChargeCost_Cases = new object[][] {
             new object[]
             {
                 "Plunge",
@@ -85,18 +86,18 @@ public class PriceHelperTests
         };
 
     [Test]
-    [TestCaseSource(nameof(PriceHelper_CalculateChargeCost_Cases))]
-    public async Task PriceHelper_CalculateChargeCost(string testName, List<Price> prices, List<Charge> charges, decimal expectedPrice, decimal expectedEnergy)
+    [TestCaseSource(nameof(PriceManager_CalculateChargeCost_Cases))]
+    public async Task PriceManager_CalculateChargeCost(string testName, List<Price> prices, List<Charge> charges, decimal expectedPrice, decimal expectedEnergy)
     {
         Console.WriteLine($"Running calculate charge cost test '{testName}'");
         SetupDynamicPriceDataService(prices);
-        _subject = _mocker.CreateInstance<PriceHelper>();
+        _subject = _mocker.CreateInstance<PriceManager>();
         var (price, energy) = await _subject.CalculateChargeCost(charges);
         Assert.That(expectedPrice, Is.EqualTo(price));
         Assert.That(expectedEnergy, Is.EqualTo(energy));
     }
 
-    private static readonly object[][] PriceHelper_CalculateEnergyUsed_Cases = new object[][] {
+    private static readonly object[][] PriceManager_CalculateEnergyUsed_Cases = new object[][] {
             new object[]
             {
                 "ThreePhase",
@@ -106,12 +107,12 @@ public class PriceHelperTests
         };
 
     [Test]
-    [TestCaseSource(nameof(PriceHelper_CalculateEnergyUsed_Cases))]
-    public void PriceHelper_CalculateEnergyUsed(string testName, List<Charge> charges, decimal expectedEnergy)
+    [TestCaseSource(nameof(PriceManager_CalculateEnergyUsed_Cases))]
+    public void PriceManager_CalculateEnergyUsed(string testName, List<Charge> charges, decimal expectedEnergy)
     {
         Console.WriteLine($"Running calculate energy used test '{testName}'");
         SetupDynamicPriceDataService();
-        _subject = _mocker.CreateInstance<PriceHelper>();
+        _subject = _mocker.CreateInstance<PriceManager>();
         var phases = _subject.DeterminePhases(charges);
         if (!phases.HasValue) { throw new Exception("Phases has no value"); }
         var energy = _subject.CalculateEnergyUsed(charges, phases.Value);
@@ -119,17 +120,17 @@ public class PriceHelperTests
     }
 
     [Test]
-    public async Task PriceHelper_NoPhaseData()
+    public async Task PriceManager_NoPhaseData()
     {
         var charges = TestHelpers.ImportCharges("nophasedata_test.csv");
         SetupDynamicPriceDataService();
-        _subject = _mocker.CreateInstance<PriceHelper>();
+        _subject = _mocker.CreateInstance<PriceManager>();
         var (price, energy) = await _subject.CalculateChargeCost(charges);
         Assert.That(0, Is.EqualTo(price));
         Assert.That(0, Is.EqualTo(energy));
     }
 
-    private static readonly object[][] PriceHelper_CalculateWholeChargeCost_Cases = new object[][] {
+    private static readonly object[][] PriceManager_CalculateWholeChargeCost_Cases = new object[][] {
             new object[]
             {
                 "WholeCharge",
@@ -149,18 +150,18 @@ public class PriceHelperTests
         };
 
     [Test]
-    [TestCaseSource(nameof(PriceHelper_CalculateWholeChargeCost_Cases))]
-    public async Task PriceHelper_CalculateWholeChargeCost(string testName, List<ProviderCharge> providerCharges, List<Charge> charges, decimal expectedPrice, decimal expectedEnergy)
+    [TestCaseSource(nameof(PriceManager_CalculateWholeChargeCost_Cases))]
+    public async Task PriceManager_CalculateWholeChargeCost(string testName, List<ProviderCharge> providerCharges, List<Charge> charges, decimal expectedPrice, decimal expectedEnergy)
     {
         Console.WriteLine($"Running calculate whole charge cost test '{testName}'");
         SetupWholePriceDataService(providerCharges);
-        _subject = _mocker.CreateInstance<PriceHelper>();
+        _subject = _mocker.CreateInstance<PriceManager>();
         var (price, energy) = await _subject.CalculateChargeCost(charges);
         Assert.That(expectedPrice, Is.EqualTo(price));
         Assert.That(expectedEnergy, Is.EqualTo(energy));
     }
 
-    private static readonly object[][] PriceHelper_LocateMostAppropriateCharge_Cases = new object[][] {
+    private static readonly object[][] PriceManager_LocateMostAppropriateCharge_Cases = new object[][] {
             new object[]
             {
                 "WithoutEnergy",
@@ -232,12 +233,12 @@ public class PriceHelperTests
         };
 
     [Test]
-    [TestCaseSource(nameof(PriceHelper_LocateMostAppropriateCharge_Cases))]
-    public void PriceHelper_LocateMostAppropriateCharge(string testName, List<ProviderCharge> providerCharges, DateTimeOffset minDate, DateTimeOffset maxDate, decimal energyUsed, decimal expectedCost)
+    [TestCaseSource(nameof(PriceManager_LocateMostAppropriateCharge_Cases))]
+    public void PriceManager_LocateMostAppropriateCharge(string testName, List<ProviderCharge> providerCharges, DateTimeOffset minDate, DateTimeOffset maxDate, decimal energyUsed, decimal expectedCost)
     {
         Console.WriteLine($"Running locate most appropriate charge test '{testName}'");
         SetupWholePriceDataService(providerCharges);
-        _subject = _mocker.CreateInstance<PriceHelper>();
+        _subject = _mocker.CreateInstance<PriceManager>();
         var mostAppropriateCharge = _subject.LocateMostAppropriateCharge(providerCharges, energyUsed, minDate, maxDate);
         Assert.That(expectedCost, Is.EqualTo(mostAppropriateCharge.Cost));
     }
@@ -251,7 +252,7 @@ public class PriceHelperTests
         priceDataService
             .As<IDynamicPriceDataService>()
             .Setup(x => x.GetPriceData(It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>()))
-            .ReturnsAsync(prices.OrderBy(x => x.ValidFrom));
+            .ReturnsAsync(new PriceData(prices.OrderBy(x => x.ValidFrom)));
 
         _mocker.Use(priceDataService.Object);
     }
@@ -265,7 +266,7 @@ public class PriceHelperTests
         priceDataService
             .As<IWholePriceDataService>()
             .Setup(x => x.GetCharges(It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>()))
-            .ReturnsAsync(providerCharges);
+            .ReturnsAsync(new ProviderChargeData(providerCharges));
 
         _mocker.Use(priceDataService.Object);
     }

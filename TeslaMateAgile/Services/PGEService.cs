@@ -6,18 +6,21 @@ using System.Globalization;
 using TeslaMateAgile.Data;
 using TeslaMateAgile.Data.Options;
 using TeslaMateAgile.Services.Interfaces;
+using TeslaMateAgile.Helpers.Interfaces;
 
 namespace TeslaMateAgile.Services;
 
 public class PGEService : IDynamicPriceDataService
 {
     private readonly HttpClient _client;
+    private readonly IRateLimitHelper _rateLimitHelper;
     private readonly PGEOptions _options;
     private readonly ILogger<PGEService> _logger;
 
-    public PGEService(HttpClient client, IOptions<PGEOptions> options, ILogger<PGEService> logger)
+    public PGEService(HttpClient client, IRateLimitHelper rateLimitHelper, IOptions<PGEOptions> options, ILogger<PGEService> logger)
     {
         _client = client;
+        _rateLimitHelper = rateLimitHelper;
         _options = options.Value;
         _logger = logger;
         
@@ -36,7 +39,7 @@ public class PGEService : IDynamicPriceDataService
             _options.RateName, _options.RepresentativeCircuitId);
     }
 
-    public async Task<IEnumerable<Price>> GetPriceData(DateTimeOffset from, DateTimeOffset to)
+    public async Task<PriceData> GetPriceData(DateTimeOffset from, DateTimeOffset to)
     {
         _logger.LogInformation("Fetching PGE price data from {From} UTC to {To} UTC", from.UtcDateTime, to.UtcDateTime);
         
@@ -85,6 +88,7 @@ public class PGEService : IDynamicPriceDataService
             _logger.LogDebug("Requesting PGE data for {CurrentDate} (startdate={StartDate}, enddate={EndDate}): {Url}", 
                 currentDate.ToString("yyyy-MM-dd"), startDateStr, endDateStr, url);
             
+            _rateLimitHelper.AddRequest();
             var resp = await _client.GetAsync(url);
             resp.EnsureSuccessStatusCode();
             
@@ -198,7 +202,7 @@ public class PGEService : IDynamicPriceDataService
                 price.ValidFrom.UtcDateTime, price.ValidTo.UtcDateTime, price.Value);
         }
         
-        return filteredPrices;
+        return new PriceData(filteredPrices);
     }
 
     private static DateTimeOffset ParsePGEDateTime(string dateTimeString)

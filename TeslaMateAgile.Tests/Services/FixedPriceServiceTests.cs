@@ -388,7 +388,7 @@ public class FixedPriceServiceTests
         Console.WriteLine($"Running get price data test '{testName}'");
         var fixedPriceService = Setup(timeZone, fixedPrices);
         var result = await fixedPriceService.GetPriceData(from, to);
-        var actualPrices = result.OrderBy(x => x.ValidFrom).ToList();
+        var actualPrices = result.Prices.OrderBy(x => x.ValidFrom).ToList();
         Assert.That(expectedPrices.Count, Is.EqualTo(actualPrices.Count()));
         for (var i = 0; i < actualPrices.Count(); i++)
         {

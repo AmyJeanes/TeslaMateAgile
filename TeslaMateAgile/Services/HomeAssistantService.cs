@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using TeslaMateAgile.Data;
 using TeslaMateAgile.Data.Options;
+using TeslaMateAgile.Helpers.Interfaces;
 using TeslaMateAgile.Services.Interfaces;
 
 namespace TeslaMateAgile.Services;
@@ -11,11 +12,13 @@ namespace TeslaMateAgile.Services;
 public class HomeAssistantService : IDynamicPriceDataService
 {
     private readonly HomeAssistantOptions _options;
+    private readonly IRateLimitHelper _rateLimitHelper;
     private readonly HttpClient _client;
 
-    public HomeAssistantService(HttpClient client, IOptions<HomeAssistantOptions> options, IOptions<TeslaMateOptions> teslaMateOptions, ILogger<HomeAssistantService> logger)
+    public HomeAssistantService(HttpClient client, IRateLimitHelper rateLimitHelper, IOptions<HomeAssistantOptions> options, IOptions<TeslaMateOptions> teslaMateOptions, ILogger<HomeAssistantService> logger)
     {
         _options = options.Value;
+        _rateLimitHelper = rateLimitHelper;
         _client = client;
         if (!teslaMateOptions.Value.LookbackDays.HasValue)
         {
@@ -23,9 +26,10 @@ public class HomeAssistantService : IDynamicPriceDataService
         }
     }
 
-    public async Task<IEnumerable<Price>> GetPriceData(DateTimeOffset from, DateTimeOffset to)
+    public async Task<PriceData> GetPriceData(DateTimeOffset from, DateTimeOffset to)
     {
         var url = $"api/history/period/{from.UtcDateTime:o}?end_time={to.UtcDateTime:o}&filter_entity_id={_options.EntityId}";
+        _rateLimitHelper.AddRequest();
         var resp = await _client.GetAsync(url);
         resp.EnsureSuccessStatusCode();
         var homeAssistantResponse = await JsonSerializer.DeserializeAsync<List<List<HomeAssistantResponse>>>(await resp.Content.ReadAsStreamAsync()) ?? throw new Exception($"Deserialization of Home Assistant API response failed");
@@ -53,7 +57,7 @@ public class HomeAssistantService : IDynamicPriceDataService
                 ValidTo = validTo
             });
         }
-        return prices;
+        return new PriceData(prices);
     }
 
     public class HomeAssistantResponse

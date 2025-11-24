@@ -22,7 +22,7 @@ public class FixedPriceWeeklyService : IDynamicPriceDataService
         _fixedPrices = GetFixedPrices(options.Value);
     }
 
-    public Task<IEnumerable<Price>> GetPriceData(DateTimeOffset from, DateTimeOffset to)
+    public Task<PriceData> GetPriceData(DateTimeOffset from, DateTimeOffset to)
     {
         var prices = new List<Price>();
 
@@ -40,7 +40,7 @@ public class FixedPriceWeeklyService : IDynamicPriceDataService
 
         prices = prices.Where(x => x.ValidFrom < to && x.ValidTo > from).ToList();
 
-        return Task.FromResult((IEnumerable<Price>)prices);
+        return Task.FromResult(new PriceData(prices));
     }
 
     private List<Price> GetPriceDataForDate(DateTime date)

@@ -329,8 +329,8 @@ If you don't use Home Assistant, unfortunately you will need to wait for your us
 Due to how TeslaMate calculates your electricity phases (TeslaMateAgile uses the same logic), short charges sometimes do not have enough data to determine the phases and this will result in a zero cost. You will see a warning in the logs when this happens that looks like this:
 
 ```
-warn: TeslaMateAgile.PriceHelper[0] Unable to determine phases for charges
-info: TeslaMateAgile.PriceHelper[0] Calculated cost 0 and energy 0 kWh for charging process 26
+warn: TeslaMateAgile.PriceManager[0] Unable to determine phases for charges
+info: TeslaMateAgile.PriceManager[0] Calculated cost 0 and energy 0 kWh for charging process 26
 ```
 
 To workaround this issue, you can set the `TeslaMate__Phases` environment variable to override the auto-detection, this will allow short charges to be calculated correctly as long as you set the correct number of phases.

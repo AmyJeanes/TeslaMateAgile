@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using TeslaMateAgile.Data;
 using TeslaMateAgile.Data.Options;
+using TeslaMateAgile.Helpers.Interfaces;
 using TeslaMateAgile.Services.Interfaces;
 
 namespace TeslaMateAgile.Services
@@ -12,19 +13,21 @@ namespace TeslaMateAgile.Services
     public class EDFTempoService : IDynamicPriceDataService
     {
         private readonly HttpClient _client;
+        private readonly IRateLimitHelper _rateLimitHelper;
         private readonly EDFTempoOptions _options;
         private readonly ILogger _logger;
 
         private readonly TimeZoneInfo frenchTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Central European Standard Time");
 
-        public EDFTempoService(HttpClient client, IOptions<EDFTempoOptions> options, ILogger<EDFTempoService> logger)
+        public EDFTempoService(HttpClient client, IRateLimitHelper rateLimitHelper, IOptions<EDFTempoOptions> options, ILogger<EDFTempoService> logger)
         {
             _client = client;
+            _rateLimitHelper = rateLimitHelper;
             _options = options.Value;
             _logger = logger;
         }
 
-        public async Task<IEnumerable<Price>> GetPriceData(DateTimeOffset from, DateTimeOffset to)
+        public async Task<PriceData> GetPriceData(DateTimeOffset from, DateTimeOffset to)
         {
 
             from = TimeZoneInfo.ConvertTime(from, frenchTimeZone);
@@ -47,6 +50,7 @@ namespace TeslaMateAgile.Services
 
             _logger.LogDebug("EDF: URL: {url}", url);
 
+            _rateLimitHelper.AddRequest();
             var response = await _client.GetAsync(url);
             response.EnsureSuccessStatusCode();
             var jsonResponse = await response.Content.ReadAsStringAsync();
@@ -65,7 +69,7 @@ namespace TeslaMateAgile.Services
                 _logger.LogDebug("EDF: TempoDay - Date: {item.dateJour}, Color: {item.codeJour}", item.DateJour, item.CodeJour);
             }
 
-            return GenerateSchedule(data, from, to);
+            return new PriceData(GenerateSchedule(data, from, to));
         }
 
         private IEnumerable<Price> GenerateSchedule(List<TempoDay> data, DateTimeOffset fromDatetime, DateTimeOffset toDatetime)

@@ -4,5 +4,5 @@ namespace TeslaMateAgile.Services.Interfaces;
 
 public interface IDynamicPriceDataService : IPriceDataService
 {
-    Task<IEnumerable<Price>> GetPriceData(DateTimeOffset from, DateTimeOffset to);
+    Task<PriceData> GetPriceData(DateTimeOffset from, DateTimeOffset to);
 }

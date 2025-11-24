@@ -4,35 +4,41 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using TeslaMateAgile.Data;
 using TeslaMateAgile.Data.Options;
+using TeslaMateAgile.Helpers.Interfaces;
 using TeslaMateAgile.Services.Interfaces;
 
 namespace TeslaMateAgile.Services
 {
-    public class MontaService : IWholePriceDataService
+    public class MontaService : IWholePriceDataService, IRateLimitedService
     {
         private readonly HttpClient _client;
+        private readonly IRateLimitHelper _rateLimitHelper;
         private readonly MontaOptions _options;
 
         public const int FetchHoursBeforeFrom = -24;
         public const int FetchHoursAfterTo = 24;
 
-        public MontaService(HttpClient client, IOptions<MontaOptions> options)
+        public int DefaultRateLimitMaxRequests => 10;
+        public int DefaultRateLimitPeriodSeconds => 60;
+
+        public MontaService(HttpClient client, IRateLimitHelper rateLimitHelper, IOptions<MontaOptions> options)
         {
             _client = client;
+            _rateLimitHelper = rateLimitHelper;
             _options = options.Value;
         }
 
-        public async Task<IEnumerable<ProviderCharge>> GetCharges(DateTimeOffset from, DateTimeOffset to)
+        public async Task<ProviderChargeData> GetCharges(DateTimeOffset from, DateTimeOffset to)
         {
             var accessToken = await GetAccessToken();
             var charges = await GetCharges(accessToken, from, to);
-            return charges.Select(x => new ProviderCharge
+            return new ProviderChargeData(charges.Select(x => new ProviderCharge
             {
                 Cost = x.Cost,
                 EnergyKwh = x.ConsumedKwh,
                 StartTime = x.StartedAt,
                 EndTime = x.StoppedAt
-            });
+            }));
         }
 
         private async Task<string> GetAccessToken()
@@ -45,6 +51,7 @@ namespace TeslaMateAgile.Services
             }), System.Text.Encoding.UTF8, "application/json");
             request.Content = content;
 
+            _rateLimitHelper.AddRequest();
             var response = await _client.SendAsync(request);
             response.EnsureSuccessStatusCode();
 
@@ -68,6 +75,7 @@ namespace TeslaMateAgile.Services
             var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
+            _rateLimitHelper.AddRequest();
             var response = await _client.SendAsync(request);
             response.EnsureSuccessStatusCode();
 

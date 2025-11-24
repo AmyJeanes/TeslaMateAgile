@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using TeslaMateAgile.Data;
 using TeslaMateAgile.Data.Options;
+using TeslaMateAgile.Helpers.Interfaces;
 using TeslaMateAgile.Services.Interfaces;
 
 namespace TeslaMateAgile.Services;
@@ -10,12 +11,14 @@ namespace TeslaMateAgile.Services;
 public class EnerginetService : IDynamicPriceDataService
 {
     private readonly HttpClient _client;
+    private readonly IRateLimitHelper _rateLimitHelper;
     private readonly EnerginetOptions _options;
     private readonly FixedPriceService _fixedPriceService;
 
-    public EnerginetService(HttpClient client, IOptions<EnerginetOptions> options)
+    public EnerginetService(HttpClient client, IRateLimitHelper rateLimitHelper, IOptions<EnerginetOptions> options)
     {
         _client = client;
+        _rateLimitHelper = rateLimitHelper;
         _options = options.Value;
 
         if (_options.FixedPrices != null)
@@ -24,9 +27,10 @@ public class EnerginetService : IDynamicPriceDataService
         }
     }
 
-    public async Task<IEnumerable<Price>> GetPriceData(DateTimeOffset from, DateTimeOffset to)
+    public async Task<PriceData> GetPriceData(DateTimeOffset from, DateTimeOffset to)
     {
         var url = "DayAheadPrices?offset=0&start=" + from.AddHours(-2).AddMinutes(-1).UtcDateTime.ToString("yyyy-MM-ddTHH:mm") + "&end=" + to.AddHours(2).AddMinutes(1).UtcDateTime.ToString("yyyy-MM-ddTHH:mm") + "&filter={\"PriceArea\":[\"" + _options.Region + "\"]}&sort=TimeUTC ASC&timezone=dk".Replace(@"\", string.Empty); ;
+        _rateLimitHelper.AddRequest();
         var resp = await _client.GetAsync(url);
 
         resp.EnsureSuccessStatusCode();
@@ -41,8 +45,8 @@ public class EnerginetService : IDynamicPriceDataService
                 decimal fixedPrice = 0;
                 if (_fixedPriceService != null)
                 {
-                    var fixedPrices = await _fixedPriceService.GetPriceData(record.TimeUTC, record.TimeUTC.AddHours(1));
-                    fixedPrice = fixedPrices.Sum(p => p.Value);
+                    var fixedPriceData = await _fixedPriceService.GetPriceData(record.TimeUTC, record.TimeUTC.AddHours(1));
+                    fixedPrice = fixedPriceData.Prices.Sum(p => p.Value);
                 }
 
                 var spotPrice = _options.Currency switch
@@ -71,7 +75,7 @@ public class EnerginetService : IDynamicPriceDataService
             }
         }
 
-        return prices;
+        return new PriceData(prices);
     }
 
     private class EnerginetResponse

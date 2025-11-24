@@ -22,7 +22,7 @@ public class FixedPriceService : IDynamicPriceDataService
         _fixedPrices = GetFixedPrices(options.Value);
     }
 
-    public Task<IEnumerable<Price>> GetPriceData(DateTimeOffset from, DateTimeOffset to)
+    public Task<PriceData> GetPriceData(DateTimeOffset from, DateTimeOffset to)
     {
         var prices = new List<Price>();
         var started = false;
@@ -61,7 +61,7 @@ public class FixedPriceService : IDynamicPriceDataService
             }
         }
 
-        return Task.FromResult(prices.AsEnumerable());
+        return Task.FromResult(new PriceData(prices.AsEnumerable()));
     }
 
     private class FixedPrice

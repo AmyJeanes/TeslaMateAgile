@@ -4,6 +4,7 @@ using Moq;
 using Moq.Contrib.HttpClient;
 using NUnit.Framework;
 using TeslaMateAgile.Data.Options;
+using TeslaMateAgile.Helpers.Interfaces;
 using TeslaMateAgile.Services;
 
 namespace TeslaMateAgile.Tests.Services;
@@ -28,9 +29,10 @@ public class PGEServiceTests
             Program = "CalFUSE"
         });
         httpClient.BaseAddress = new Uri(pgeOptions.Value.BaseUrl);
-        
+
+        var mockRateLimitHelper = new Mock<IRateLimitHelper>();
         var mockLogger = new Mock<ILogger<PGEService>>();
-        _subject = new PGEService(httpClient, pgeOptions, mockLogger.Object);
+        _subject = new PGEService(httpClient, mockRateLimitHelper.Object, pgeOptions, mockLogger.Object);
     }
 
     [Test]
@@ -46,8 +48,8 @@ public class PGEServiceTests
 
         var startDate = DateTimeOffset.Parse("2023-10-26T00:00:00-07:00");
         var endDate = DateTimeOffset.Parse("2023-10-26T05:00:00-07:00");
-        var prices = await _subject.GetPriceData(startDate, endDate);
-        var priceList = prices.ToList();
+        var priceData = await _subject.GetPriceData(startDate, endDate);
+        var priceList = priceData.Prices.ToList();
 
         // The service requests 3 days: one day before, the actual day, and one day after
         _handler.VerifyAnyRequest(Times.Exactly(3));
@@ -98,10 +100,11 @@ public class PGEServiceTests
             RepresentativeCircuitId = "083611114",
             Program = "CalFUSE"
         });
+        var mockRateLimitHelper = new Mock<IRateLimitHelper>();
         var mockLogger = new Mock<ILogger<PGEService>>();
-        
+
         var ex = Assert.Throws<InvalidOperationException>(() => 
-            new PGEService(httpClient, pgeOptions, mockLogger.Object));
+            new PGEService(httpClient, mockRateLimitHelper.Object, pgeOptions, mockLogger.Object));
         
         Assert.That(ex, Is.Not.Null);
         Assert.That(ex.Message, Does.Contain("PGE RateName is required"));
@@ -120,10 +123,11 @@ public class PGEServiceTests
             RepresentativeCircuitId = "", // Empty RepresentativeCircuitId
             Program = "CalFUSE"
         });
+        var mockRateLimitHelper = new Mock<IRateLimitHelper>();
         var mockLogger = new Mock<ILogger<PGEService>>();
         
         var ex = Assert.Throws<InvalidOperationException>(() => 
-            new PGEService(httpClient, pgeOptions, mockLogger.Object));
+            new PGEService(httpClient, mockRateLimitHelper.Object, pgeOptions, mockLogger.Object));
         
         Assert.That(ex, Is.Not.Null);
         Assert.That(ex.Message, Does.Contain("PGE RepresentativeCircuitId is required"));

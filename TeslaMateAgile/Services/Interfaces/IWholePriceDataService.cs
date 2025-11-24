@@ -4,6 +4,6 @@ namespace TeslaMateAgile.Services.Interfaces
 {
     public interface IWholePriceDataService : IPriceDataService
     {
-        Task<IEnumerable<ProviderCharge>> GetCharges(DateTimeOffset from, DateTimeOffset to);
+        Task<ProviderChargeData> GetCharges(DateTimeOffset from, DateTimeOffset to);
     }
 }

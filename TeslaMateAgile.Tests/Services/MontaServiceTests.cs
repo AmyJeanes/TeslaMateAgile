@@ -4,6 +4,7 @@ using Moq.Contrib.HttpClient;
 using NUnit.Framework;
 using System.Text.Json;
 using TeslaMateAgile.Data.Options;
+using TeslaMateAgile.Helpers.Interfaces;
 using TeslaMateAgile.Services;
 
 namespace TeslaMateAgile.Tests.Services
@@ -26,7 +27,8 @@ namespace TeslaMateAgile.Tests.Services
                 ChargePointId = 123
             });
             httpClient.BaseAddress = new Uri(montaOptions.Value.BaseUrl);
-            _subject = new MontaService(httpClient, montaOptions);
+            var rateLimitHelper = new Mock<IRateLimitHelper>().Object;
+            _subject = new MontaService(httpClient, rateLimitHelper, montaOptions);
         }
 
         [Test]
@@ -61,7 +63,8 @@ namespace TeslaMateAgile.Tests.Services
             _handler.SetupRequest(HttpMethod.Get, $"https://public-api.monta.com/api/v1/charges?state=completed&fromDate={fromDate:o}&toDate={toDate:o}&chargePointId=123")
                 .ReturnsResponse(JsonSerializer.Serialize(chargesResponse), "application/json");
 
-            var charges = await _subject.GetCharges(from, to);
+            var providerChargeData = await _subject.GetCharges(from, to);
+            var charges = providerChargeData.Charges;
 
             Assert.That(charges, Is.Not.Empty);
             Assert.That(charges.First().Cost, Is.EqualTo(10.0M));
@@ -82,7 +85,10 @@ namespace TeslaMateAgile.Tests.Services
                 ClientId = "test-client-id",
                 ClientSecret = "test-client-secret"
             });
-            _subject = new MontaService(_handler.CreateClient(), montaOptions);
+
+            var rateLimitHelper = new Mock<IRateLimitHelper>().Object;
+
+            _subject = new MontaService(_handler.CreateClient(), rateLimitHelper, montaOptions);
 
             var accessTokenResponse = new
             {
@@ -110,7 +116,8 @@ namespace TeslaMateAgile.Tests.Services
             _handler.SetupRequest(HttpMethod.Get, $"https://public-api.monta.com/api/v1/charges?state=completed&fromDate={fromDate:o}&toDate={toDate:o}")
                 .ReturnsResponse(JsonSerializer.Serialize(chargesResponse), "application/json");
 
-            var charges = await _subject.GetCharges(from, to);
+            var providerChargeData = await _subject.GetCharges(from, to);
+            var charges = providerChargeData.Charges;
 
             Assert.That(charges, Is.Not.Empty);
             Assert.That(charges.First().Cost, Is.EqualTo(10.0M));

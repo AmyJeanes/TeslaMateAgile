@@ -67,6 +67,8 @@ public class RateLimitHelperTests
     [Test]
     public void Configure_UsesServiceDefaults()
     {
+        _options.RateLimitMaxRequests = 0;
+        _options.RateLimitPeriodSeconds = 0;
         var subject = CreateSubject();
         subject.Configure(new TestRateLimitedService());
 
@@ -81,6 +83,21 @@ public class RateLimitHelperTests
         _timeProvider.Advance(TimeSpan.FromSeconds(TestRateLimitedService.DefaultPeriodSeconds + 1));
 
         Assert.That(subject.HasReachedRateLimit(), Is.False);
+    }
+
+    [Test]
+    public void Configure_GlobalOptionsOverrideServiceDefaults()
+    {
+        var subject = CreateSubject();
+        subject.Configure(new TestRateLimitedService());
+
+        for (var i = 0; i < _options.RateLimitMaxRequests; i++)
+        {
+            subject.AddRequest();
+        }
+
+        Assert.That(subject.HasReachedRateLimit(), Is.True);
+        Assert.That(subject.GetNextReset(), Is.EqualTo(_timeProvider.GetUtcNow().AddSeconds(_options.RateLimitPeriodSeconds)));
     }
 
     private RateLimitHelper CreateSubject()

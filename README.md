@@ -25,7 +25,7 @@ If you have used the [TeslaMate Docker install guide](https://docs.teslamate.org
 services:
 
   teslamateagile:
-    image: mattjeanes/teslamateagile:latest
+    image: ghcr.io/amyjeanes/teslamateagile:latest
     restart: always
     environment:
       - DATABASE_USER=teslamate
@@ -340,8 +340,3 @@ To workaround this issue, you can set the `TeslaMate__Phases` environment variab
 ### Why am I seeing warnings about rate limits?
 
 If you have enabled rate limiting using the `TeslaMate__RateLimitMaxRequests` and `TeslaMate__RateLimitPeriodSeconds` or your energy provider has default rate limits configured (e.g. Monta), TeslaMateAgile automatically backs off the providers API to avoid getting blocked.
-
-## Docker support
-This project is available on Docker
-
-[![](https://img.shields.io/docker/pulls/mattjeanes/teslamateagile.svg)](https://hub.docker.com/repository/docker/mattjeanes/teslamateagile)

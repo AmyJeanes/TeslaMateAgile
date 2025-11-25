@@ -236,11 +236,14 @@ public class PriceManager : IPriceManager
         var energyToleranceRatio = _teslaMateOptions.MatchingEnergyToleranceRatio;
 
 
+        var chargesWithEnergy = possibleCharges.Where(x => x.EnergyKwh.HasValue).ToList();
+        var useEnergyMatching = chargesWithEnergy.Any() && energyUsed > 0;
+
         List<ProviderCharge> appropriateCharges;
-        if (possibleCharges.Any(x => x.EnergyKwh.HasValue))
+        if (useEnergyMatching)
         {
-            _logger.LogDebug("Energy data found in possible charges, using energy and start time matching of {StartToleranceMins} minutes from {StartDate} and {EnergyToleranceRatio} ratio of {EnergyUsed}kWh energy used", startToleranceMins, minDate, energyToleranceRatio, energyUsed);
-            appropriateCharges = possibleCharges
+            _logger.LogDebug("Energy data found in {Count} possible charge(s), using energy and start time matching of {StartToleranceMins} minutes from {StartDate} and {EnergyToleranceRatio} ratio of {EnergyUsed}kWh energy used", chargesWithEnergy.Count, startToleranceMins, minDate, energyToleranceRatio, energyUsed);
+            appropriateCharges = chargesWithEnergy
                 .Where(x => Math.Abs((x.StartTime - minDate).TotalMinutes) <= startToleranceMins
                     && Math.Abs((x.EnergyKwh.Value - energyUsed) / energyUsed) <= energyToleranceRatio)
                 .OrderBy(x => Math.Abs((x.StartTime - minDate).TotalMinutes))
@@ -248,12 +251,15 @@ public class PriceManager : IPriceManager
 
             if (!appropriateCharges.Any())
             {
-                throw new Exception($"No appropriate charge found (of {possibleCharges.Count()} evaluated) within the tolerance range of {startToleranceMins} minutes of {minDate} and {energyToleranceRatio} ratio of {energyUsed}kWh energy used");
+                throw new Exception($"No appropriate charge found (of {chargesWithEnergy.Count} evaluated) within the tolerance range of {startToleranceMins} minutes of {minDate} and {energyToleranceRatio} ratio of {energyUsed}kWh energy used");
             }
         }
         else
         {
-            _logger.LogDebug("No energy data found in possible charges, using start and end time matching of {StartToleranceMins} minutes from {StartDate} and {EndToleranceMins} minutes from {EndDate}", startToleranceMins, minDate, endToleranceMins, maxDate);
+            var timeMatchReason = chargesWithEnergy.Any()
+                ? "energy data available but energy used was 0kWh"
+                : "no energy data available";
+            _logger.LogDebug("Using start and end time matching ({Reason}) of {StartToleranceMins} minutes from {StartDate} and {EndToleranceMins} minutes from {EndDate}", timeMatchReason, startToleranceMins, minDate, endToleranceMins, maxDate);
             appropriateCharges = possibleCharges
                 .Where(x => Math.Abs((x.StartTime - minDate).TotalMinutes) <= startToleranceMins
                     && Math.Abs((x.EndTime - maxDate).TotalMinutes) <= endToleranceMins)

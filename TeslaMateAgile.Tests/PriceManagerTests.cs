@@ -230,6 +230,60 @@ public class PriceManagerTests
                 DateTimeOffset.Parse("2023-08-25T03:00:00Z"),
                 30M,
                 15.00M
+            },
+            new object[]
+            {
+                "WithMixedEnergy",
+                new List<ProviderCharge>
+                {
+                    new ProviderCharge
+                    {
+                        Cost = 9.00M,
+                        StartTime = DateTimeOffset.Parse("2023-08-24T23:20:00Z"),
+                        EndTime = DateTimeOffset.Parse("2023-08-25T02:50:00Z")
+                    },
+                    new ProviderCharge
+                    {
+                        Cost = 12.50M,
+                        EnergyKwh = 29.5M,
+                        StartTime = DateTimeOffset.Parse("2023-08-24T23:28:00Z"),
+                        EndTime = DateTimeOffset.Parse("2023-08-25T03:05:00Z")
+                    },
+                    new ProviderCharge
+                    {
+                        Cost = 18.00M,
+                        StartTime = DateTimeOffset.Parse("2023-08-24T23:10:00Z"),
+                        EndTime = DateTimeOffset.Parse("2023-08-25T03:20:00Z")
+                    }
+                },
+                DateTimeOffset.Parse("2023-08-24T23:30:00Z"),
+                DateTimeOffset.Parse("2023-08-25T03:00:00Z"),
+                30M,
+                12.50M
+            },
+            new object[]
+            {
+                "ZeroEnergyWithAvailableData",
+                new List<ProviderCharge>
+                {
+                    new ProviderCharge
+                    {
+                        Cost = 11.00M,
+                        EnergyKwh = 25M,
+                        StartTime = DateTimeOffset.Parse("2023-08-24T23:32:00Z"),
+                        EndTime = DateTimeOffset.Parse("2023-08-25T03:02:00Z")
+                    },
+                    new ProviderCharge
+                    {
+                        Cost = 13.00M,
+                        StartTime = DateTimeOffset.Parse("2023-08-24T23:29:00Z"),
+                        EndTime = DateTimeOffset.Parse("2023-08-25T03:01:00Z")
+                    }
+                },
+                DateTimeOffset.Parse("2023-08-24T23:30:00Z"),
+                DateTimeOffset.Parse("2023-08-25T03:00:00Z"),
+                0M,
+                13.00M
             }
         };
 

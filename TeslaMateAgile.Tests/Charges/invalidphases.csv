@@ -1,0 +1,3 @@
+id,date,battery_heater_on,battery_level,charge_energy_added,charger_actual_current,charger_phases,charger_pilot_current,charger_power,charger_voltage,fast_charger_present,conn_charge_cable,fast_charger_brand,fast_charger_type,ideal_battery_range_km,not_enough_power_to_heat,outside_temp,charging_process_id,battery_heater,battery_heater_no_power,rated_battery_range_km,usable_battery_level
+10076,2024-07-04 13:26:00,,82,0.00,,1,,13,230,,,,,391.90,,,2597,,,391.90,
+10077,2024-07-04 14:36:00,,94,11.23,,1,,13,230,,,,,453.50,,,2597,,,453.50,

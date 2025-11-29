@@ -216,7 +216,7 @@ public class PriceManager : IPriceManager
         _logger.LogDebug("Retrieved {Count} possible charges:", possibleCharges.Count());
         foreach (var charge in possibleCharges)
         {
-            _logger.LogDebug("{StartTime} UTC - {EndTime} UTC: {Cost}", charge.StartTime.UtcDateTime, charge.EndTime.UtcDateTime, charge.Cost);
+            _logger.LogDebug("{StartTime} UTC - {EndTime} UTC: {Cost} cost, {EnergyKwh} kWh", charge.StartTime.UtcDateTime, charge.EndTime.UtcDateTime, charge.Cost, charge.EnergyKwh);
         }
         var phases = ((decimal?)_teslaMateOptions.Phases) ?? DeterminePhases(charges);
         if (!phases.HasValue)

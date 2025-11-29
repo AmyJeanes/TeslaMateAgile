@@ -147,6 +147,37 @@ public class PriceManagerTests
                 TestHelpers.ImportCharges("exactmillisecond_test.csv"),
                 10.00M,
                 21.41M,
+            },
+            new object[]
+            {
+                "InvalidPhasesDefaultZero",
+                new List<ProviderCharge>
+                {
+                    new ProviderCharge
+                    {
+                        Cost = 2.38M,
+                        StartTime = DateTimeOffset.Parse("2024-04-07T23:00:54Z"),
+                        EndTime = DateTimeOffset.Parse("2024-04-07T05:59:15Z"),
+                        EnergyKwh = 10M
+                    },
+                    new ProviderCharge
+                    {
+                        Cost = 2.38M,
+                        StartTime = DateTimeOffset.Parse("2024-04-07T21:15:44Z"),
+                        EndTime = DateTimeOffset.Parse("2024-04-07T21:15:44Z"),
+                        EnergyKwh = 10M
+                    },
+                    new ProviderCharge
+                    {
+                        Cost = 2.38M,
+                        StartTime = DateTimeOffset.Parse("2024-04-07T13:26:25Z"),
+                        EndTime = DateTimeOffset.Parse("2024-04-07T14:36:59Z"),
+                        EnergyKwh = 10M
+                    }
+                },
+                TestHelpers.ImportCharges("invalidphases.csv"),
+                0M,
+                0M,
             }
         };
 

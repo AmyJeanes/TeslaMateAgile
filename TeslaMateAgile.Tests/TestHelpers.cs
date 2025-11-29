@@ -37,7 +37,7 @@ public class TestHelpers
             {
                 Id = csvReader.GetField<int>("id"),
                 ChargeEnergyAdded = csvReader.GetField<decimal>("charge_energy_added"),
-                ChargerActualCurrent = csvReader.GetField<int>("charger_actual_current"),
+                ChargerActualCurrent = csvReader.GetField<int?>("charger_actual_current"),
                 ChargerPhases = csvReader.GetField<int?>("charger_phases"),
                 ChargerPower = csvReader.GetField<int>("charger_power"),
                 ChargerVoltage = csvReader.GetField<int>("charger_voltage"),

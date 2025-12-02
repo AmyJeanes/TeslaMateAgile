@@ -25,6 +25,11 @@ public class PriceService : IHostedService, IDisposable
     public Task StartAsync(CancellationToken cancellationToken)
     {
         var version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        // Strip off Source Link metadata if present
+        if (!string.IsNullOrEmpty(version) && version.Contains('+'))
+        {
+            version = version.Substring(0, version.IndexOf('+'));
+        }
         _logger.LogInformation("Starting TeslaMateAgile (version: {Version})", version);
         var legacyImageWarning = Environment.GetEnvironmentVariable("TESLAMATE_LEGACY_IMAGE_WARNING");
         if (bool.TryParse(legacyImageWarning, out var warningEnabled) && warningEnabled)

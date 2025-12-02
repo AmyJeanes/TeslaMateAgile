@@ -32,7 +32,8 @@ jobs:
           INFORMATIONAL_VERSION="$VERSION-edge-${GITHUB_SHA::8}"
         fi
         echo VERSION=$VERSION >> $GITHUB_OUTPUT
-        echo INFORMATIONAL_VERSION=$INFORMATIONAL_VERSION >> $GITHUB_OUTPUT
+        echo ASSEMBLY_VERSION=${VERSION#v} >> $GITHUB_OUTPUT
+        echo ASSEMBLY_INFORMATIONAL_VERSION=${INFORMATIONAL_VERSION#v} >> $GITHUB_OUTPUT
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         
@@ -46,8 +47,8 @@ jobs:
         for runtime in "${runtimes[@]}"; do
           echo "Building for runtime: $runtime"
           dotnet publish ./TeslaMateAgile/TeslaMateAgile.csproj \
-            -p:Version=${{ steps.variables.outputs.VERSION }} \
-            -p:InformationalVersion=${{ steps.variables.outputs.INFORMATIONAL_VERSION }} \
+            -p:Version=${{ steps.variables.outputs.ASSEMBLY_VERSION }} \
+            -p:InformationalVersion=${{ steps.variables.outputs.ASSEMBLY_INFORMATIONAL_VERSION }} \
             --self-contained true \
             --runtime $runtime \
             --output ./output/TeslaMateAgile-$runtime
@@ -63,13 +64,13 @@ jobs:
             echo "Building $appname image for $arch"
             docker build -t $app:$arch -f "$appname/Dockerfile" . \
               --build-arg arch=$fullarch \
-              --build-arg version=${{ steps.variables.outputs.VERSION }} \
-              --build-arg informational_version=${{ steps.variables.outputs.INFORMATIONAL_VERSION }}
+              --build-arg version=${{ steps.variables.outputs.ASSEMBLY_VERSION }} \
+              --build-arg informational_version=${{ steps.variables.outputs.ASSEMBLY_INFORMATIONAL_VERSION }}
             echo "Building $appname image for $arch with legacy image warning"
             docker build -t $app:legacy-$arch -f "$appname/Dockerfile" . \
               --build-arg arch=$fullarch \
-              --build-arg version=${{ steps.variables.outputs.VERSION }} \
-              --build-arg informational_version=${{ steps.variables.outputs.INFORMATIONAL_VERSION }} \
+              --build-arg version=${{ steps.variables.outputs.ASSEMBLY_VERSION }} \
+              --build-arg informational_version=${{ steps.variables.outputs.ASSEMBLY_INFORMATIONAL_VERSION }} \
               --build-arg legacy_image_warning=true
           done
         done

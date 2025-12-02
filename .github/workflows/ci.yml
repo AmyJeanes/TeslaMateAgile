@@ -24,8 +24,17 @@ jobs:
     - name: Set variables
       id: variables
       run: |
-        VERSION=${GITHUB_REF#refs/tags/}
+        if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+          VERSION=${GITHUB_REF#refs/tags/}
+          INFORMATIONAL_VERSION=$VERSION
+        else
+          VERSION=$(gh release list --json isLatest,tagName --jq '.[] | select(.isLatest)|.tagName')
+          INFORMATIONAL_VERSION="$VERSION-edge-${GITHUB_SHA::8}"
+        fi
         echo VERSION=$VERSION >> $GITHUB_OUTPUT
+        echo INFORMATIONAL_VERSION=$INFORMATIONAL_VERSION >> $GITHUB_OUTPUT
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         
     - name: Test project
       run: |
@@ -33,10 +42,16 @@ jobs:
         
     - name: Build project
       run: |
-        dotnet publish ./TeslaMateAgile/TeslaMateAgile.csproj --self-contained true --runtime linux-x64 --output ./output/TeslaMateAgile-linux-x64
-        dotnet publish ./TeslaMateAgile/TeslaMateAgile.csproj --self-contained true --runtime linux-arm64 --output ./output/TeslaMateAgile-linux-arm64
-        dotnet publish ./TeslaMateAgile/TeslaMateAgile.csproj --self-contained true --runtime linux-arm --output ./output/TeslaMateAgile-linux-arm
-        dotnet publish ./TeslaMateAgile/TeslaMateAgile.csproj --self-contained true --runtime win-x64 --output ./output/TeslaMateAgile-win-x64
+        runtimes=(linux-x64 linux-arm64 linux-arm win-x64)
+        for runtime in "${runtimes[@]}"; do
+          echo "Building for runtime: $runtime"
+          dotnet publish ./TeslaMateAgile/TeslaMateAgile.csproj \
+            -p:Version=${{ steps.variables.outputs.VERSION }} \
+            -p:InformationalVersion=${{ steps.variables.outputs.INFORMATIONAL_VERSION }} \
+            --self-contained true \
+            --runtime $runtime \
+            --output ./output/TeslaMateAgile-$runtime
+        done
         
     - name: Build Docker images
       run: |
@@ -44,11 +59,18 @@ jobs:
         for appname in TeslaMateAgile; do
           app=`echo $appname | tr '[:upper:]' '[:lower:]'`
           for arch in "${arches[@]}"; do
-            buildArg="noble-$arch"
+            fullarch="noble-$arch"
             echo "Building $appname image for $arch"
-            docker build -t $app:$arch -f "$appname/Dockerfile" . --build-arg arch=$buildArg
+            docker build -t $app:$arch -f "$appname/Dockerfile" . \
+              --build-arg arch=$fullarch \
+              --build-arg version=${{ steps.variables.outputs.VERSION }} \
+              --build-arg informational_version=${{ steps.variables.outputs.INFORMATIONAL_VERSION }}
             echo "Building $appname image for $arch with legacy image warning"
-            docker build -t $app:legacy-$arch -f "$appname/Dockerfile" . --build-arg arch=$buildArg --build-arg legacy_image_warning=true
+            docker build -t $app:legacy-$arch -f "$appname/Dockerfile" . \
+              --build-arg arch=$fullarch \
+              --build-arg version=${{ steps.variables.outputs.VERSION }} \
+              --build-arg informational_version=${{ steps.variables.outputs.INFORMATIONAL_VERSION }} \
+              --build-arg legacy_image_warning=true
           done
         done
       

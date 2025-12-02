@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Reflection;
 using TeslaMateAgile.Data.Options;
 using TeslaMateAgile.Managers.Interfaces;
 
@@ -23,6 +24,8 @@ public class PriceService : IHostedService, IDisposable
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        var version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        _logger.LogInformation("Starting TeslaMateAgile (version: {Version})", version);
         var legacyImageWarning = Environment.GetEnvironmentVariable("TESLAMATE_LEGACY_IMAGE_WARNING");
         if (bool.TryParse(legacyImageWarning, out var warningEnabled) && warningEnabled)
         {

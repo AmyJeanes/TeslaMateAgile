@@ -14,6 +14,7 @@ public class PriceService : IHostedService, IDisposable
     private readonly TeslaMateOptions _options;
     private readonly IServiceProvider _serviceProvider;
     private Timer _timer;
+    private bool _working = false;
 
     public PriceService(ILogger<PriceService> logger, IOptions<TeslaMateOptions> options, IServiceProvider serviceProvider)
     {
@@ -46,9 +47,16 @@ public class PriceService : IHostedService, IDisposable
 
         _timer = new Timer(async (state) =>
         {
+            if (_working)
+            {
+                _logger.LogWarning("Skipping price update, previous update still in progress");
+                return;
+            }
             try
             {
+                _working = true;
                 await DoWork();
+                _working = false;
             }
             catch (Exception e)
             {

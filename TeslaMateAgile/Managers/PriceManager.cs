@@ -80,7 +80,7 @@ public class PriceManager : IPriceManager
             }
             try
             {
-                if (chargingProcess.Charges == null) { _logger.LogError("Could not find charges on charging process {Id}", chargingProcess.Id); continue; }
+                if (chargingProcess.Charges == null) { _logger.LogError("Could not find charges on charging process {Id}", chargingProcess.Id); TryMarkAsUncalculable(chargingProcess, "missing charge data"); continue; }
                 var (cost, energy) = await CalculateChargeCost(chargingProcess.Charges);
                 _logger.LogInformation("Calculated cost {Cost} and energy {Energy} kWh for charging process {Id}", cost, energy, chargingProcess.Id);
                 if (chargingProcess.ChargeEnergyUsed.HasValue && chargingProcess.ChargeEnergyUsed.Value != energy)
@@ -97,6 +97,7 @@ public class PriceManager : IPriceManager
             catch (Exception e)
             {
                 _logger.LogError(e, "Failed to calculate charging cost / energy for charging process {Id}", chargingProcess.Id);
+                TryMarkAsUncalculable(chargingProcess, "calculation error");
             }
         }
 
@@ -286,6 +287,20 @@ public class PriceManager : IPriceManager
         }
 
         return appropriateCharges.First();
+    }
+
+    private bool TryMarkAsUncalculable(ChargingProcess chargingProcess, string reason)
+    {
+        var timeoutHours = _teslaMateOptions.ChargeCalculationTimeoutHours;
+        if (!timeoutHours.HasValue || timeoutHours.Value <= 0) { return false; }
+        if (!chargingProcess.EndDate.HasValue) { return false; }
+
+        var markAfter = chargingProcess.EndDate.Value.AddHours(timeoutHours.Value);
+        if (DateTime.UtcNow < markAfter) { return false; }
+
+        chargingProcess.Cost = -1;
+        _logger.LogWarning("Marking charging process {Id} as uncalculable (-1) after {TimeoutHours} hour(s) grace period due to {Reason}", chargingProcess.Id, timeoutHours.Value, reason);
+        return true;
     }
 
     public decimal CalculateEnergyUsed(IEnumerable<Charge> charges, decimal phases)

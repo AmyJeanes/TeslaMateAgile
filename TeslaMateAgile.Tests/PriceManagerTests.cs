@@ -472,6 +472,254 @@ public class PriceManagerTests
         Assert.That(process.Cost, Is.Null);
     }
 
+    [Test]
+    public async Task PriceManager_Update_MarksUncalculableAfterTimeout_WhenEnabled()
+    {
+        using var context = CreateInMemoryContext();
+        context.Geofences.Add(new Geofence { Id = 1, Name = "Home" });
+        var charge = new Charge
+        {
+            Id = 1,
+            ChargeEnergyAdded = 1,
+            ChargerPower = 1,
+#pragma warning disable CS0618
+            DateInternal = DateTime.UtcNow.AddHours(-4)
+#pragma warning restore CS0618
+        };
+        var processEntity = new ChargingProcess
+        {
+            Id = 1,
+            GeofenceId = 1,
+            StartDate = DateTime.UtcNow.AddHours(-5),
+            EndDate = DateTime.UtcNow.AddHours(-3),
+            Charges = new List<Charge> { charge }
+        };
+        charge.ChargingProcess = processEntity;
+        context.ChargingProcesses.Add(processEntity);
+        context.SaveChanges();
+
+        var mockRateLimitHelper = new Mock<IRateLimitHelper>();
+        mockRateLimitHelper.Setup(x => x.HasReachedRateLimit()).Returns(false);
+
+        var mockLogger = new Mock<ILogger<PriceManager>>();
+
+        var priceDataService = new Mock<IPriceDataService>();
+        priceDataService
+            .As<IDynamicPriceDataService>()
+            .Setup(x => x.GetPriceData(It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>()))
+            .ThrowsAsync(new Exception("test failure"));
+
+        var options = Options.Create(new TeslaMateOptions
+        {
+            GeofenceId = 1,
+            MatchingStartToleranceMinutes = 30,
+            MatchingEndToleranceMinutes = 120,
+            MatchingEnergyToleranceRatio = 0.1M,
+            RateLimitMaxRequests = 2,
+            RateLimitPeriodSeconds = 60,
+            ChargeCalculationTimeoutHours = 1
+        });
+
+        _mocker.Use(context);
+        _mocker.Use(mockRateLimitHelper.Object);
+        _mocker.Use(mockLogger.Object);
+        _mocker.Use(priceDataService.Object);
+        _mocker.Use(options);
+
+        _subject = _mocker.CreateInstance<PriceManager>();
+
+        await _subject.Update();
+
+        var process = context.ChargingProcesses.Single();
+        Assert.That(process.Cost, Is.EqualTo(-1));
+    }
+
+    [Test]
+    public async Task PriceManager_Update_DoesNotMarkUncalculable_WhenFeatureDisabled()
+    {
+        using var context = CreateInMemoryContext();
+        context.Geofences.Add(new Geofence { Id = 1, Name = "Home" });
+        var charge = new Charge
+        {
+            Id = 1,
+            ChargeEnergyAdded = 1,
+            ChargerPower = 1,
+#pragma warning disable CS0618
+            DateInternal = DateTime.UtcNow.AddHours(-4)
+#pragma warning restore CS0618
+        };
+        var processEntity = new ChargingProcess
+        {
+            Id = 1,
+            GeofenceId = 1,
+            StartDate = DateTime.UtcNow.AddHours(-5),
+            EndDate = DateTime.UtcNow.AddHours(-3),
+            Charges = new List<Charge> { charge }
+        };
+        charge.ChargingProcess = processEntity;
+        context.ChargingProcesses.Add(processEntity);
+        context.SaveChanges();
+
+        var mockRateLimitHelper = new Mock<IRateLimitHelper>();
+        mockRateLimitHelper.Setup(x => x.HasReachedRateLimit()).Returns(false);
+
+        var mockLogger = new Mock<ILogger<PriceManager>>();
+
+        var priceDataService = new Mock<IPriceDataService>();
+        priceDataService
+            .As<IDynamicPriceDataService>()
+            .Setup(x => x.GetPriceData(It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>()))
+            .ThrowsAsync(new Exception("test failure"));
+
+        var options = Options.Create(new TeslaMateOptions
+        {
+            GeofenceId = 1,
+            MatchingStartToleranceMinutes = 30,
+            MatchingEndToleranceMinutes = 120,
+            MatchingEnergyToleranceRatio = 0.1M,
+            RateLimitMaxRequests = 2,
+            RateLimitPeriodSeconds = 60,
+            ChargeCalculationTimeoutHours = null
+        });
+
+        _mocker.Use(context);
+        _mocker.Use(mockRateLimitHelper.Object);
+        _mocker.Use(mockLogger.Object);
+        _mocker.Use(priceDataService.Object);
+        _mocker.Use(options);
+
+        _subject = _mocker.CreateInstance<PriceManager>();
+
+        await _subject.Update();
+
+        var process = context.ChargingProcesses.Single();
+        Assert.That(process.Cost, Is.Null);
+    }
+
+    [Test]
+    public async Task PriceManager_Update_DoesNotMarkUncalculable_WhenTimeoutNotReached()
+    {
+        using var context = CreateInMemoryContext();
+        context.Geofences.Add(new Geofence { Id = 1, Name = "Home" });
+        var charge = new Charge
+        {
+            Id = 1,
+            ChargeEnergyAdded = 1,
+            ChargerPower = 1,
+#pragma warning disable CS0618
+            DateInternal = DateTime.UtcNow.AddMinutes(-90)
+#pragma warning restore CS0618
+        };
+        var processEntity = new ChargingProcess
+        {
+            Id = 1,
+            GeofenceId = 1,
+            StartDate = DateTime.UtcNow.AddHours(-2),
+            EndDate = DateTime.UtcNow.AddMinutes(-70),
+            Charges = new List<Charge> { charge }
+        };
+        charge.ChargingProcess = processEntity;
+        context.ChargingProcesses.Add(processEntity);
+        context.SaveChanges();
+
+        var mockRateLimitHelper = new Mock<IRateLimitHelper>();
+        mockRateLimitHelper.Setup(x => x.HasReachedRateLimit()).Returns(false);
+
+        var mockLogger = new Mock<ILogger<PriceManager>>();
+
+        var priceDataService = new Mock<IPriceDataService>();
+        priceDataService
+            .As<IDynamicPriceDataService>()
+            .Setup(x => x.GetPriceData(It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>()))
+            .ThrowsAsync(new Exception("test failure"));
+
+        var options = Options.Create(new TeslaMateOptions
+        {
+            GeofenceId = 1,
+            MatchingStartToleranceMinutes = 30,
+            MatchingEndToleranceMinutes = 120,
+            MatchingEnergyToleranceRatio = 0.1M,
+            RateLimitMaxRequests = 2,
+            RateLimitPeriodSeconds = 60,
+            ChargeCalculationTimeoutHours = 2
+        });
+
+        _mocker.Use(context);
+        _mocker.Use(mockRateLimitHelper.Object);
+        _mocker.Use(mockLogger.Object);
+        _mocker.Use(priceDataService.Object);
+        _mocker.Use(options);
+
+        _subject = _mocker.CreateInstance<PriceManager>();
+
+        await _subject.Update();
+
+        var process = context.ChargingProcesses.Single();
+        Assert.That(process.Cost, Is.Null);
+    }
+
+    [Test]
+    public async Task PriceManager_Update_DoesNotMarkUncalculable_WhenEndDateMissing()
+    {
+        using var context = CreateInMemoryContext();
+        context.Geofences.Add(new Geofence { Id = 1, Name = "Home" });
+        var charge = new Charge
+        {
+            Id = 1,
+            ChargeEnergyAdded = 1,
+            ChargerPower = 1,
+#pragma warning disable CS0618
+            DateInternal = DateTime.UtcNow.AddHours(-4)
+#pragma warning restore CS0618
+        };
+        var processEntity = new ChargingProcess
+        {
+            Id = 1,
+            GeofenceId = 1,
+            StartDate = DateTime.UtcNow.AddHours(-5),
+            EndDate = null,
+            Charges = new List<Charge> { charge }
+        };
+        charge.ChargingProcess = processEntity;
+        context.ChargingProcesses.Add(processEntity);
+        context.SaveChanges();
+
+        var mockRateLimitHelper = new Mock<IRateLimitHelper>();
+        mockRateLimitHelper.Setup(x => x.HasReachedRateLimit()).Returns(false);
+
+        var mockLogger = new Mock<ILogger<PriceManager>>();
+
+        var priceDataService = new Mock<IPriceDataService>();
+        priceDataService
+            .As<IDynamicPriceDataService>()
+            .Setup(x => x.GetPriceData(It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>()))
+            .ThrowsAsync(new Exception("test failure"));
+
+        var options = Options.Create(new TeslaMateOptions
+        {
+            GeofenceId = 1,
+            MatchingStartToleranceMinutes = 30,
+            MatchingEndToleranceMinutes = 120,
+            MatchingEnergyToleranceRatio = 0.1M,
+            RateLimitMaxRequests = 2,
+            RateLimitPeriodSeconds = 60,
+            ChargeCalculationTimeoutHours = 1
+        });
+
+        _mocker.Use(context);
+        _mocker.Use(mockRateLimitHelper.Object);
+        _mocker.Use(mockLogger.Object);
+        _mocker.Use(priceDataService.Object);
+        _mocker.Use(options);
+
+        _subject = _mocker.CreateInstance<PriceManager>();
+
+        await _subject.Update();
+
+        var process = context.ChargingProcesses.Single();
+        Assert.That(process.Cost, Is.Null);
+    }
+
     private static TeslaMateDbContext CreateInMemoryContext()
     {
         var options = new DbContextOptionsBuilder<TeslaMateDbContext>()

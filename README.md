@@ -184,6 +184,7 @@ Note: Pricing is published daily at 6pm Pacific Time for the following day. Make
 - TeslaMate__MatchingEnergyToleranceRatio=0.1 # Tolerance ratio for matching energy for whole cost providers that provide energy data (default: 0.1)
 - TeslaMate__RateLimitMaxRequests=10 # Max requests per period for rate limiting, must also set RateLimitPeriodSeconds (default: 0 = no limit)
 - TeslaMate__RateLimitPeriodSeconds=60 # Period in seconds for rate limiting, must also set RateLimitMaxRequests (default: 0 = no limit)
+- TeslaMate__ChargeCalculationTimeoutHours=0 # Mark a finished charge as uncalculable (-1) if pricing cannot be computed within this many hours after it ends (default: unset = no timeout)
 ```
 
 ## Database connection

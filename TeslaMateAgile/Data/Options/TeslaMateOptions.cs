@@ -35,4 +35,7 @@ public class TeslaMateOptions
 
     [Range(0, int.MaxValue)]
     public int RateLimitPeriodSeconds { get; set; }
+
+    [Range(0, int.MaxValue)]
+    public int? ChargeCalculationTimeoutHours { get; set; }
 }

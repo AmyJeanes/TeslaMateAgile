@@ -197,6 +197,36 @@ public class PriceManager : IPriceManager
                 _logger.LogWarning("  {ValidFrom} UTC - {ValidTo} UTC", priceRange.ValidFrom.UtcDateTime, priceRange.ValidTo.UtcDateTime);
             }
 
+            // Highlight gaps between price intervals within the charge window to spot missing tempo periods
+            var sortedPrices = prices.OrderBy(p => p.ValidFrom).ToList();
+            var gaps = new List<(DateTimeOffset Start, DateTimeOffset End)>();
+            var cursor = chargeTimeRange.First();
+            foreach (var price in sortedPrices)
+            {
+                if (price.ValidFrom > cursor)
+                {
+                    gaps.Add((cursor, price.ValidFrom));
+                }
+                if (price.ValidTo > cursor)
+                {
+                    cursor = price.ValidTo;
+                }
+            }
+            var chargeRangeEnd = chargeTimeRange.Last();
+            if (cursor < chargeRangeEnd)
+            {
+                gaps.Add((cursor, chargeRangeEnd));
+            }
+
+            if (gaps.Any())
+            {
+                _logger.LogWarning("Detected {GapCount} gap(s) in price coverage:", gaps.Count);
+                foreach (var gap in gaps)
+                {
+                    _logger.LogWarning("  Gap: {Start} UTC -> {End} UTC", gap.Start.UtcDateTime, gap.End.UtcDateTime);
+                }
+            }
+
             throw new Exception($"Charge calculation failed, pricing calculated for {chargesCalculated} / {chargesCount}, likely missing price data");
         }
         return (Math.Round(totalPrice, 2), Math.Round(totalEnergy, 2));

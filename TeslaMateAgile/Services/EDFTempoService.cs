@@ -7,6 +7,7 @@ using TeslaMateAgile.Data;
 using TeslaMateAgile.Data.Options;
 using TeslaMateAgile.Helpers.Interfaces;
 using TeslaMateAgile.Services.Interfaces;
+using TimeZoneConverter;
 
 namespace TeslaMateAgile.Services
 {
@@ -17,7 +18,7 @@ namespace TeslaMateAgile.Services
         private readonly EDFTempoOptions _options;
         private readonly ILogger _logger;
 
-        private readonly TimeZoneInfo frenchTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Central European Standard Time");
+        private readonly TimeZoneInfo _frenchTimeZone = TZConvert.GetTimeZoneInfo("Europe/Paris");
 
         public EDFTempoService(HttpClient client, IRateLimitHelper rateLimitHelper, IOptions<EDFTempoOptions> options, ILogger<EDFTempoService> logger)
         {
@@ -30,8 +31,8 @@ namespace TeslaMateAgile.Services
         public async Task<PriceData> GetPriceData(DateTimeOffset from, DateTimeOffset to)
         {
 
-            from = TimeZoneInfo.ConvertTime(from, frenchTimeZone);
-            to = TimeZoneInfo.ConvertTime(to, frenchTimeZone);
+            from = TimeZoneInfo.ConvertTime(from, _frenchTimeZone);
+            to = TimeZoneInfo.ConvertTime(to, _frenchTimeZone);
 
             _logger.LogDebug("EDF: Range - {from} -> {to}", from, to);
 
@@ -75,14 +76,13 @@ namespace TeslaMateAgile.Services
         private IEnumerable<Price> GenerateSchedule(List<TempoDay> data, DateTimeOffset fromDatetime, DateTimeOffset toDatetime)
         {
             var schedList = new List<Price>();
-            var schedule = new List<Tuple<DateTimeOffset, Tuple<TimeSpan, TimeSpan, int, int>, int>>();
 
-            // Period Tuple: Start DateTime, End DateTime, color day associated (-1 = previous day), PeakHours (0=Off peak)
+            // Period Tuple: Start, End, color day associated (-1 = previous day), PeakHours (0 = Off peak)
             var segments = new List<Tuple<TimeSpan, TimeSpan, int, int>>()
             {
-                new Tuple<TimeSpan, TimeSpan, int, int>(TimeSpan.FromHours(0)+TimeSpan.FromMinutes(0)+TimeSpan.FromSeconds(0), TimeSpan.FromHours(5)+TimeSpan.FromMinutes(59)+TimeSpan.FromSeconds(59)+TimeSpan.FromMilliseconds(999), -1, 0),
-                new Tuple<TimeSpan, TimeSpan, int, int>(TimeSpan.FromHours(6)+TimeSpan.FromMinutes(0)+TimeSpan.FromSeconds(0), TimeSpan.FromHours(21)+TimeSpan.FromMinutes(59)+TimeSpan.FromSeconds(59)+TimeSpan.FromMilliseconds(999), 0, 1),
-                new Tuple<TimeSpan, TimeSpan, int, int>(TimeSpan.FromHours(22)+TimeSpan.FromMinutes(0)+TimeSpan.FromSeconds(0), TimeSpan.FromHours(23)+TimeSpan.FromMinutes(59)+TimeSpan.FromSeconds(59)+TimeSpan.FromMilliseconds(999), 0, 0)
+                new(TimeSpan.FromHours(0), TimeSpan.FromHours(5) + TimeSpan.FromMinutes(59) + TimeSpan.FromSeconds(59) + TimeSpan.FromMilliseconds(999), -1, 0),
+                new(TimeSpan.FromHours(6), TimeSpan.FromHours(21) + TimeSpan.FromMinutes(59) + TimeSpan.FromSeconds(59) + TimeSpan.FromMilliseconds(999), 0, 1),
+                new(TimeSpan.FromHours(22), TimeSpan.FromHours(23) + TimeSpan.FromMinutes(59) + TimeSpan.FromSeconds(59) + TimeSpan.FromMilliseconds(999), 0, 0)
             };
 
             // Price for each period
@@ -91,33 +91,58 @@ namespace TeslaMateAgile.Services
                 {0, _options.BLUE_HC}, {1, _options.BLUE_HP}, {2, _options.WHITE_HC}, {3, _options.WHITE_HP}, {4, _options.RED_HC}, {5, _options.RED_HP}
             };
 
-            // For each day, add schedule (Peak/Off peak hours)
+            var schedule = new List<(DateTimeOffset StartUtc, DateTimeOffset EndUtc, int CodeJour, int PeakFlag)>();
+
+            // For each day, add schedule (Peak/Off peak hours) with per-segment DST-aware offsets
             for (var day = 1; day < data.Count; day++)
             {
                 var dateLocal = DateTime.ParseExact(data[day].DateJour, "yyyy-MM-dd", CultureInfo.InvariantCulture);
-                var date = new DateTimeOffset(dateLocal, frenchTimeZone.GetUtcOffset(dateLocal));
 
                 foreach (var segment in segments)
                 {
+                    var segmentDateLocal = dateLocal;
+                    var startLocal = segmentDateLocal.Add(segment.Item1);
+                    var endLocal = segmentDateLocal.Add(segment.Item2);
+
+                    var startOffset = _frenchTimeZone.GetUtcOffset(startLocal);
+                    var endOffset = _frenchTimeZone.GetUtcOffset(endLocal);
+
+                    var startUtc = new DateTimeOffset(startLocal, startOffset).ToUniversalTime();
+                    var endUtc = new DateTimeOffset(endLocal, endOffset).ToUniversalTime();
+
                     var codeJour = data[day + segment.Item3].CodeJour;
-                    schedule.Add(new Tuple<DateTimeOffset, Tuple<TimeSpan, TimeSpan, int, int>, int>(date, segment, codeJour));
+                    schedule.Add((startUtc, endUtc, codeJour, segment.Item4));
                 }
             }
 
+            schedule = schedule.OrderBy(x => x.StartUtc).ToList();
+
+            _logger.LogDebug("EDF: Built {Count} schedule segments", schedule.Count);
+            foreach (var segment in schedule)
+            {
+                _logger.LogDebug("EDF: Segment {Start} -> {End} UTC, code {CodeJour}, peakFlag {PeakFlag}", segment.StartUtc, segment.EndUtc, segment.CodeJour, segment.PeakFlag);
+            }
+
             // When have we charged?
-            int startSchedule = 0, stopSchedule = 0;
+            int startSchedule = -1, stopSchedule = -1;
 
             for (var i = 0; i < schedule.Count; i++)
             {
-                if (fromDatetime.Date == schedule[i].Item1.Date && fromDatetime.TimeOfDay >= schedule[i].Item2.Item1 && fromDatetime.TimeOfDay <= schedule[i].Item2.Item2)
+                if (fromDatetime.ToUniversalTime() >= schedule[i].StartUtc && fromDatetime.ToUniversalTime() <= schedule[i].EndUtc)
                 {
                     startSchedule = i;
                 }
 
-                if (toDatetime.Date == schedule[i].Item1.Date && toDatetime.TimeOfDay >= schedule[i].Item2.Item1 && toDatetime.TimeOfDay <= schedule[i].Item2.Item2)
+                if (toDatetime.ToUniversalTime() >= schedule[i].StartUtc && toDatetime.ToUniversalTime() <= schedule[i].EndUtc)
                 {
                     stopSchedule = i;
                 }
+            }
+
+            if (startSchedule == -1 || stopSchedule == -1)
+            {
+                _logger.LogError("EDF: Could not locate schedule for range {From} -> {To}", fromDatetime, toDatetime);
+                throw new Exception($"Unable to locate tempo schedule for range {fromDatetime} -> {toDatetime}");
             }
 
             _logger.LogDebug("EDF: startSchedule: {startSchedule}, stopSchedule: {stopSchedule}", startSchedule, stopSchedule);
@@ -125,7 +150,7 @@ namespace TeslaMateAgile.Services
             // Get price
             for (var iter = startSchedule; iter <= stopSchedule; iter++)
             {
-                var price = prices[(schedule[iter].Item3 - 1) * 2 + schedule[iter].Item2.Item4];
+                var price = prices[(schedule[iter].CodeJour - 1) * 2 + schedule[iter].PeakFlag];
 
                 if (iter == startSchedule && iter == stopSchedule)
                 {
@@ -135,17 +160,17 @@ namespace TeslaMateAgile.Services
 
                 if (iter == startSchedule)
                 {
-                    schedList.Add(new Price { ValidFrom = fromDatetime.ToUniversalTime(), ValidTo = (schedule[iter].Item1.Add(schedule[iter].Item2.Item2)).ToUniversalTime(), Value = price });
+                    schedList.Add(new Price { ValidFrom = fromDatetime.ToUniversalTime(), ValidTo = schedule[iter].EndUtc, Value = price });
                     continue;
                 }
 
                 if (iter == stopSchedule)
                 {
-                    schedList.Add(new Price { ValidFrom = (schedule[iter].Item1.Add(schedule[iter].Item2.Item1)).ToUniversalTime(), ValidTo = toDatetime.ToUniversalTime(), Value = price });
+                    schedList.Add(new Price { ValidFrom = schedule[iter].StartUtc, ValidTo = toDatetime.ToUniversalTime(), Value = price });
                     continue;
                 }
 
-                schedList.Add(new Price { ValidFrom = (schedule[iter].Item1.Add(schedule[iter].Item2.Item1)).ToUniversalTime(), ValidTo = (schedule[iter].Item1.Add(schedule[iter].Item2.Item2)).ToUniversalTime(), Value = price });
+                schedList.Add(new Price { ValidFrom = schedule[iter].StartUtc, ValidTo = schedule[iter].EndUtc, Value = price });
             }
 
             foreach (var item in schedList)

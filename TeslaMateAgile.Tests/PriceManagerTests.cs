@@ -98,6 +98,57 @@ public class PriceManagerTests
         Assert.That(expectedEnergy, Is.EqualTo(energy));
     }
 
+    [Test]
+    public void PriceManager_CalculateChargeCost_ThrowsOnGapInPriceCoverage()
+    {
+        // Price coverage intentionally ends at 00:30, leaving a gap for the 01:00 charge
+        var prices = new List<Price>
+        {
+            new()
+            {
+                ValidFrom = DateTimeOffset.Parse("2025-01-01T00:00:00Z"),
+                ValidTo = DateTimeOffset.Parse("2025-01-01T00:30:00Z"),
+                Value = 0.10m
+            }
+        };
+
+        var charges = new List<Charge>
+        {
+            BuildCharge(1, "2025-01-01T00:00:00Z", 11, 16, 230, 3),
+            BuildCharge(2, "2025-01-01T00:30:00Z", 11, 16, 230, 3),
+            BuildCharge(3, "2025-01-01T01:00:00Z", 11, 16, 230, 3)
+        };
+
+        SetupDynamicPriceDataService(prices);
+
+        var mockLogger = new Mock<ILogger<PriceManager>>();
+
+        var options = Options.Create(new TeslaMateOptions
+        {
+            MatchingStartToleranceMinutes = 30,
+            MatchingEndToleranceMinutes = 120,
+            MatchingEnergyToleranceRatio = 0.1M,
+            Phases = 3
+        });
+        _mocker.Use(options);
+        _mocker.Use(mockLogger.Object);
+
+        _subject = _mocker.CreateInstance<PriceManager>();
+
+        var ex = Assert.ThrowsAsync<Exception>(() => _subject.CalculateChargeCost(charges));
+        Assert.That(ex, Is.Not.Null);
+        Assert.That(ex!.Message, Does.Contain("missing price data"));
+
+        mockLogger.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("Detected 1 gap(s) in price coverage")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception, string>>()),
+            Times.Once);
+    }
+
     private static readonly object[][] PriceManager_CalculateEnergyUsed_Cases = new object[][] {
             new object[]
             {
@@ -754,5 +805,20 @@ public class PriceManagerTests
             .ReturnsAsync(new ProviderChargeData(providerCharges));
 
         _mocker.Use(priceDataService.Object);
+    }
+
+    private static Charge BuildCharge(int id, string timestamp, int chargerPower, int current, int voltage, int phases)
+    {
+        return new Charge
+        {
+            Id = id,
+            ChargerPower = chargerPower,
+            ChargerActualCurrent = current,
+            ChargerVoltage = voltage,
+            ChargerPhases = phases,
+#pragma warning disable CS0618
+            DateInternal = DateTimeOffset.Parse(timestamp).UtcDateTime
+#pragma warning restore CS0618
+        };
     }
 }

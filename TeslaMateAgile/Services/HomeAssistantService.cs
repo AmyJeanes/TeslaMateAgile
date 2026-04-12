@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System.Globalization;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -40,7 +41,7 @@ public class HomeAssistantService : IDynamicPriceDataService
         }
 
         // Skip non-numeric states (e.g. "unavailable", "unknown") from HA history
-        var numericHistory = history.Where(h => decimal.TryParse(h.State, out _)).ToList();
+        var numericHistory = history.Where(h => decimal.TryParse(h.State, NumberStyles.Number, CultureInfo.InvariantCulture, out _)).ToList();
         if (!numericHistory.Any())
         {
             throw new Exception($"No numeric price data from Home Assistant for entity id {_options.EntityId} in date range {from.UtcDateTime:o} to {to.UtcDateTime:o}");
@@ -54,7 +55,7 @@ public class HomeAssistantService : IDynamicPriceDataService
         for (var i = 0; i < history.Count; i++)
         {
             var state = history[i];
-            var price = decimal.Parse(state.State);
+            var price = decimal.Parse(state.State, CultureInfo.InvariantCulture);
             var validFrom = state.LastUpdated;
             var validTo = (i < history.Count - 1) ? history[i + 1].LastUpdated : to;
 

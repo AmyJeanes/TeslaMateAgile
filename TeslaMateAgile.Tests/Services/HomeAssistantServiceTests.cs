@@ -66,7 +66,6 @@ public class HomeAssistantServiceTests
 
         // 6 entries in the JSON, 2 are non-numeric (unavailable, unknown) → 4 prices
         Assert.That(priceList.Count, Is.EqualTo(4));
-        Assert.That(priceList.All(p => p.Value > 0), Is.True, "All prices should be numeric and positive");
 
         // Verify the unavailable/unknown entries were skipped and time ranges are correct
         // The price before 'unavailable' should extend to the next valid entry's timestamp

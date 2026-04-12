@@ -56,7 +56,8 @@ public class HomeAssistantService : IDynamicPriceDataService
         {
             var state = history[i];
             var price = decimal.Parse(state.State, CultureInfo.InvariantCulture);
-            var validFrom = state.LastUpdated;
+            // If leading entries were filtered, extend the first valid price to cover from the start
+            var validFrom = (i == 0) ? from : state.LastUpdated;
             var validTo = (i < history.Count - 1) ? history[i + 1].LastUpdated : to;
 
             prices.Add(new Price

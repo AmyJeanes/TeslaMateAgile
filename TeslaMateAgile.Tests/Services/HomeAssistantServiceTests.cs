@@ -78,4 +78,26 @@ public class HomeAssistantServiceTests
         Assert.That(priceList[3].Value, Is.EqualTo(0.0100M));
         Assert.That(priceList[3].ValidTo, Is.EqualTo(endDate));
     }
+
+    [Test]
+    public async Task Extends_First_Price_When_Leading_Entries_Filtered()
+    {
+        var json = File.ReadAllText(Path.Combine("Prices", "ha_test_leading_unavailable.json"));
+
+        _handler.SetupAnyRequest()
+            .ReturnsResponse(json, "application/json");
+
+        var startDate = DateTimeOffset.Parse("2023-08-24T23:43:53Z");
+        var endDate = DateTimeOffset.Parse("2023-08-25T03:19:42Z");
+        var priceData = await _subject.GetPriceData(startDate, endDate);
+        var priceList = priceData.Prices.ToList();
+
+        // First entry is unavailable, so the first valid price should extend back to cover startDate
+        Assert.That(priceList.Count, Is.EqualTo(2));
+        Assert.That(priceList[0].ValidFrom, Is.EqualTo(startDate),
+            "First price should extend back to the requested start date");
+        Assert.That(priceList[0].Value, Is.EqualTo(0.0095M));
+        Assert.That(priceList[1].Value, Is.EqualTo(0.0100M));
+        Assert.That(priceList[1].ValidTo, Is.EqualTo(endDate));
+    }
 }

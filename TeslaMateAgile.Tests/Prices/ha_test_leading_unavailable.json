@@ -1,0 +1,25 @@
+[
+  [
+    {
+      "entity_id": "sensor.tesla_effective_price",
+      "state": "unavailable",
+      "attributes": {},
+      "last_changed": "2023-08-24T23:43:53+00:00",
+      "last_updated": "2023-08-24T23:43:53+00:00"
+    },
+    {
+      "entity_id": "sensor.tesla_effective_price",
+      "state": "0.0095",
+      "attributes": {},
+      "last_changed": "2023-08-24T23:43:53.025000+00:00",
+      "last_updated": "2023-08-24T23:43:53.025000+00:00"
+    },
+    {
+      "entity_id": "sensor.tesla_effective_price",
+      "state": "0.0100",
+      "attributes": {},
+      "last_changed": "2023-08-25T01:00:00+00:00",
+      "last_updated": "2023-08-25T01:00:00+00:00"
+    }
+  ]
+]

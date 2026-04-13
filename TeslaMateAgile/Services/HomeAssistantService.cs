@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System.Globalization;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -38,16 +39,26 @@ public class HomeAssistantService : IDynamicPriceDataService
         {
             throw new Exception($"No data from Home Assistant for entity id {_options.EntityId}, ensure it and {nameof(TeslaMateOptions.LookbackDays)} are set correctly");
         }
+
         if (history.First().LastUpdated != from)
         {
             throw new Exception($"Home Assistant has incomplete data for date range {from.UtcDateTime:o} to {to.UtcDateTime:o}, ensure entity and {nameof(TeslaMateOptions.LookbackDays)} are set correctly");
         }
+
+        // Skip non-numeric states (e.g. "unavailable", "unknown") from HA history
+        var numericHistory = history.Where(h => decimal.TryParse(h.State, NumberStyles.Number, CultureInfo.InvariantCulture, out _)).ToList();
+        if (!numericHistory.Any())
+        {
+            throw new Exception($"No numeric price data from Home Assistant for entity id {_options.EntityId} in date range {from.UtcDateTime:o} to {to.UtcDateTime:o}");
+        }
+        history = numericHistory;
         var prices = new List<Price>();
         for (var i = 0; i < history.Count; i++)
         {
             var state = history[i];
-            var price = decimal.Parse(state.State);
-            var validFrom = state.LastUpdated;
+            var price = decimal.Parse(state.State, CultureInfo.InvariantCulture);
+            // If leading entries were filtered, extend the first valid price to cover from the start
+            var validFrom = (i == 0) ? from : state.LastUpdated;
             var validTo = (i < history.Count - 1) ? history[i + 1].LastUpdated : to;
 
             prices.Add(new Price

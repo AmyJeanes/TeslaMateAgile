@@ -14,7 +14,7 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
     
     - name: Setup .NET Core SDK
       uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
@@ -218,7 +218,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build]
     steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
     
     - name: Connect to Kubernetes
       uses: AmyJeanes/Abyss-Infrastructure/.github/actions/connect-k8s@03c48a400f497d878a78d4ed8d1a6eb02caf76f8 # main

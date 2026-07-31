@@ -771,6 +771,103 @@ public class PriceManagerTests
         Assert.That(process.Cost, Is.Null);
     }
 
+    [Test]
+    public async Task PriceManager_Update_PricesChargesOutsideAnyGeofence_WhenGeofenceIdNotSet()
+    {
+        using var context = CreateGeofencedAndUngeofencedProcesses();
+
+        await RunUpdateWithGeofenceId(context, geofenceId: null);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(context.ChargingProcesses.Single(x => x.Id == 2).Cost, Is.Not.Null, "the charge outside any geofence should have been priced");
+            Assert.That(context.ChargingProcesses.Single(x => x.Id == 1).Cost, Is.Null, "the charge inside a geofence should have been left alone");
+        });
+    }
+
+    /// <summary>
+    /// Leaving the geofence unset means charges outside every geofence, not charges everywhere,
+    /// so configuring a geofence must never pick up ungeofenced charges.
+    /// </summary>
+    [Test]
+    public async Task PriceManager_Update_IgnoresChargesOutsideAnyGeofence_WhenGeofenceIdSet()
+    {
+        using var context = CreateGeofencedAndUngeofencedProcesses();
+
+        await RunUpdateWithGeofenceId(context, geofenceId: 1);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(context.ChargingProcesses.Single(x => x.Id == 1).Cost, Is.Not.Null, "the charge inside the configured geofence should have been priced");
+            Assert.That(context.ChargingProcesses.Single(x => x.Id == 2).Cost, Is.Null, "the charge outside any geofence should have been left alone");
+        });
+    }
+
+    private static TeslaMateDbContext CreateGeofencedAndUngeofencedProcesses()
+    {
+        var context = CreateInMemoryContext();
+        context.Geofences.Add(new Geofence { Id = 1, Name = "Home" });
+
+        foreach (var (processId, geofenceId) in new (int ProcessId, int? GeofenceId)[] { (1, 1), (2, null) })
+        {
+            var charge = new Charge
+            {
+                Id = processId,
+                ChargeEnergyAdded = 1,
+                ChargerPower = 1,
+#pragma warning disable CS0618
+                DateInternal = DateTime.UtcNow.AddHours(-2)
+#pragma warning restore CS0618
+            };
+            var processEntity = new ChargingProcess
+            {
+                Id = processId,
+                GeofenceId = geofenceId,
+                StartDate = DateTime.UtcNow.AddHours(-2),
+                EndDate = DateTime.UtcNow.AddHours(-1),
+                Charges = new List<Charge> { charge }
+            };
+            charge.ChargingProcess = processEntity;
+            context.ChargingProcesses.Add(processEntity);
+        }
+
+        context.SaveChanges();
+        return context;
+    }
+
+    private async Task RunUpdateWithGeofenceId(TeslaMateDbContext context, int? geofenceId)
+    {
+        var mockRateLimitHelper = new Mock<IRateLimitHelper>();
+        mockRateLimitHelper.Setup(x => x.HasReachedRateLimit()).Returns(false);
+
+        SetupDynamicPriceDataService(new List<Price>
+        {
+            new Price
+            {
+                ValidFrom = DateTimeOffset.UtcNow.AddHours(-3),
+                ValidTo = DateTimeOffset.UtcNow,
+                Value = 1
+            }
+        });
+
+        _mocker.Use(context);
+        _mocker.Use(mockRateLimitHelper.Object);
+        _mocker.Use(new Mock<ILogger<PriceManager>>().Object);
+        _mocker.Use(Options.Create(new TeslaMateOptions
+        {
+            GeofenceId = geofenceId,
+            Phases = 1,
+            MatchingStartToleranceMinutes = 30,
+            MatchingEndToleranceMinutes = 120,
+            MatchingEnergyToleranceRatio = 0.1M,
+            RateLimitMaxRequests = 2,
+            RateLimitPeriodSeconds = 60
+        }));
+
+        _subject = _mocker.CreateInstance<PriceManager>();
+        await _subject.Update();
+    }
+
     private static TeslaMateDbContext CreateInMemoryContext()
     {
         var options = new DbContextOptionsBuilder<TeslaMateDbContext>()

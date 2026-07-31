@@ -47,6 +47,10 @@ See below for how to configure the environment variables appropriately
 - TeslaMate__GeofenceId=1 # You can get this by editing the Geofence inside TeslaMate and getting it from the url 
 ```
 
+`TeslaMate__GeofenceId` may be left unset, in which case charges that did not happen inside **any** geofence are priced instead. This is intended for public charging, where the provider knows what the session cost but TeslaMate has no geofence to attach it to.
+
+Note that unset means *outside every geofence*, not *every charge*. Setting a geofence id never picks up ungeofenced charges, and leaving it unset never touches charges inside a geofence, so you can run one instance per case without them overwriting each other.
+
 ### Octopus Energy
 ```yaml
 - TeslaMate__EnergyProvider=Octopus

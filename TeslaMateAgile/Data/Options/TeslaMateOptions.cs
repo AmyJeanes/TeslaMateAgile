@@ -5,8 +5,12 @@ namespace TeslaMateAgile.Data.Options;
 
 public class TeslaMateOptions
 {
+    /// <summary>
+    /// Geofence to price charges for. Leave unset to price charges that did not happen inside
+    /// any geofence, for example public charging.
+    /// </summary>
     [Range(1, int.MaxValue)]
-    public int GeofenceId { get; set; }
+    public int? GeofenceId { get; set; }
 
     [Range(1, int.MaxValue)]
     public int UpdateIntervalSeconds { get; set; }

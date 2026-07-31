@@ -22,8 +22,11 @@ public class ChargingProcess
     [Column("end_date")]
     public DateTime? EndDate { get; set; }
 
+    /// <summary>
+    /// Null when the charge did not happen inside any geofence, for example public charging
+    /// </summary>
     [Column("geofence_id")]
-    public int GeofenceId { get; set; }
+    public int? GeofenceId { get; set; }
 
     [Column("cost")]
     public decimal? Cost { get; set; }

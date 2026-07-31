@@ -36,31 +36,47 @@ public class PriceManager : IPriceManager
 
     public async Task Update()
     {
-        var geofence = await _context.Geofences.FirstOrDefaultAsync(x => x.Id == _teslaMateOptions.GeofenceId);
+        var geofenceId = _teslaMateOptions.GeofenceId;
+        string location;
 
-        if (geofence == null)
+        if (geofenceId.HasValue)
         {
-            _logger.LogWarning("Configured geofence id does not exist in the TeslaMate database, make sure you have entered the correct id");
-            return;
+            var geofence = await _context.Geofences.FirstOrDefaultAsync(x => x.Id == geofenceId.Value);
+
+            if (geofence == null)
+            {
+                _logger.LogWarning("Configured geofence id does not exist in the TeslaMate database, make sure you have entered the correct id");
+                return;
+            }
+            else if (geofence.CostPerUnit.HasValue)
+            {
+                _logger.LogWarning("Configured geofence '{Name}' (id: {Id}) should not have a cost set in TeslaMate as this may override TeslaMateAgile calculation", geofence.Name, geofence.Id);
+                return;
+            }
+
+            location = $"in the '{geofence.Name}' geofence (id: {geofence.Id})";
         }
-        else if (geofence.CostPerUnit.HasValue)
+        else
         {
-            _logger.LogWarning("Configured geofence '{Name}' (id: {Id}) should not have a cost set in TeslaMate as this may override TeslaMateAgile calculation", geofence.Name, geofence.Id);
-            return;
+            location = "outside any geofence";
         }
 
         var query = _context.ChargingProcesses
             .Include(x => x.Charges)
-            .Where(x => x.GeofenceId == _teslaMateOptions.GeofenceId && x.EndDate.HasValue && !x.Cost.HasValue);
+            .Where(x => x.EndDate.HasValue && !x.Cost.HasValue);
+
+        query = geofenceId.HasValue
+            ? query.Where(x => x.GeofenceId == geofenceId.Value)
+            : query.Where(x => x.GeofenceId == null);
 
         if (_teslaMateOptions.LookbackDays.HasValue)
         {
-            _logger.LogInformation("Looking for finished charging processes with no cost set started less than {Days} day(s) ago in the '{Name}' geofence (id: {Id})", _teslaMateOptions.LookbackDays.Value, geofence.Name, geofence.Id);
+            _logger.LogInformation("Looking for finished charging processes with no cost set started less than {Days} day(s) ago {Location}", _teslaMateOptions.LookbackDays.Value, location);
             query = query.Where(x => x.StartDate > DateTime.UtcNow.AddDays(-_teslaMateOptions.LookbackDays.Value));
         }
         else
         {
-            _logger.LogInformation("Looking for finished charging processes with no cost set in the '{Name}' geofence (id: {Id})", geofence.Name, geofence.Id);
+            _logger.LogInformation("Looking for finished charging processes with no cost set {Location}", location);
         }
 
         var chargingProcesses = await query.ToListAsync();

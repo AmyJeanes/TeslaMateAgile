@@ -49,6 +49,8 @@ See below for how to configure the environment variables appropriately
 
 `TeslaMate__GeofenceId` may be left unset, in which case charges that did not happen inside **any** geofence are priced instead. This is intended for public charging, where the provider knows what the session cost but TeslaMate has no geofence to attach it to.
 
+Only Monta reports what a session actually cost. Every other provider derives a price from your own tariff, so with one of those an ungeofenced charge is priced at your home rate rather than what you actually paid.
+
 Note that unset means *outside every geofence*, not *every charge*. Setting a geofence id never picks up ungeofenced charges, and leaving it unset never touches charges inside a geofence, so you can run one instance per case without them overwriting each other.
 
 ### Octopus Energy

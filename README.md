@@ -136,7 +136,19 @@ The Fixed Price Weekly provider is similar to the Fixed Price provider but allow
 - Monta__ClientId=abc123 # Client ID of your Monta Public API app
 - Monta__ClientSecret=abc123 # Client secret of your Monta Publiic API app
 - Monta__ChargePointId=123 # Optional: Restrict searches to a particular charge point ID
+- Monta__PriceType=Cost # Optional (default: Cost), see below Monta price types section
 ```
+
+#### Monta price types
+
+Monta reports two amounts for a charge and they are not the same number:
+
+| Price type | Monta field | Use when |
+| --- | --- | --- |
+| `Cost` | `cost` | You own the charge point. This is what the energy cost its owner, and is only populated when a cost is configured for the charge point. |
+| `Price` | `price` | You are the driver on someone else's charge point, e.g. public charging. This is what you were actually billed. |
+
+On a public charge point `cost` belongs to the operator rather than to you, so leaving this at the default there will either record someone else's cost or nothing at all.
 
 ### EDF Tempo
 

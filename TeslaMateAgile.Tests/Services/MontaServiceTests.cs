@@ -3,6 +3,7 @@ using Moq;
 using Moq.Contrib.HttpClient;
 using NUnit.Framework;
 using System.Text.Json;
+using TeslaMateAgile.Data.Enums;
 using TeslaMateAgile.Data.Options;
 using TeslaMateAgile.Helpers.Interfaces;
 using TeslaMateAgile.Services;
@@ -130,6 +131,108 @@ namespace TeslaMateAgile.Tests.Services
             Assert.That(charges.First().StartTime, Is.EqualTo(from));
             Assert.That(charges.First().EndTime, Is.EqualTo(to));
             rateLimitHelperMock.Verify(x => x.AddRequest(), Times.Exactly(2));
+        }
+
+        [TestCase(null, 10.0)]
+        [TestCase(MontaPriceType.Cost, 10.0)]
+        [TestCase(MontaPriceType.Price, 42.5)]
+        public async Task GetCharges_ShouldUseTheAmountMatchingThePriceType(MontaPriceType? priceType, decimal expectedCost)
+        {
+            var from = DateTimeOffset.Parse("2024-10-17T00:00:00+00:00");
+            var to = DateTimeOffset.Parse("2024-10-17T15:00:00+00:00");
+
+            var montaOptions = new MontaOptions
+            {
+                BaseUrl = "https://public-api.monta.com/api/v1",
+                ClientId = "test-client-id",
+                ClientSecret = "test-client-secret"
+            };
+            if (priceType.HasValue) { montaOptions.PriceType = priceType.Value; }
+
+            var rateLimitHelperMock = new Mock<IRateLimitHelper>();
+            rateLimitHelperMock.Setup(x => x.Configure(It.IsAny<IRateLimitedService>())).Returns(rateLimitHelperMock.Object);
+
+            _subject = new MontaService(_handler.CreateClient(), rateLimitHelperMock.Object, Options.Create(montaOptions));
+
+            // A public charge point reports the operator's cost and the price the driver paid.
+            // They are not the same number and only the latter is what the driver was billed.
+            var chargesResponse = new
+            {
+                data = new[]
+                {
+                    new
+                    {
+                        startedAt = from,
+                        stoppedAt = to,
+                        cost = 10.0M,
+                        price = 42.5M,
+                        consumedKwh = 15.0M
+                    }
+                }
+            };
+
+            _handler.SetupRequest(HttpMethod.Post, "https://public-api.monta.com/api/v1/auth/token")
+                .ReturnsResponse(JsonSerializer.Serialize(new { accessToken = "test-access-token" }), "application/json");
+
+            var fromDate = from.AddHours(MontaService.FetchHoursBeforeFrom).UtcDateTime;
+            var toDate = to.AddHours(MontaService.FetchHoursAfterTo).UtcDateTime;
+            _handler.SetupRequest(HttpMethod.Get, $"https://public-api.monta.com/api/v1/charges?state=completed&fromDate={fromDate:o}&toDate={toDate:o}")
+                .ReturnsResponse(JsonSerializer.Serialize(chargesResponse), "application/json");
+
+            var providerChargeData = await _subject.GetCharges(from, to);
+
+            Assert.That(providerChargeData.Charges.First().Cost, Is.EqualTo(expectedCost));
+        }
+
+        /// <summary>
+        /// Monta documents both amounts as nullable. A null must not stop the rest of the
+        /// response deserialising, since the charge we are actually looking for may be
+        /// another one in the same window.
+        /// </summary>
+        [Test]
+        public async Task GetCharges_ShouldReportNoCost_WhenMontaReportsNoAmount()
+        {
+            var from = DateTimeOffset.Parse("2024-10-17T00:00:00+00:00");
+            var to = DateTimeOffset.Parse("2024-10-17T15:00:00+00:00");
+
+            var chargesResponse = new
+            {
+                data = new[]
+                {
+                    new
+                    {
+                        startedAt = from,
+                        stoppedAt = to,
+                        cost = (decimal?)null,
+                        price = (decimal?)null,
+                        consumedKwh = 15.0M
+                    },
+                    new
+                    {
+                        startedAt = from,
+                        stoppedAt = to,
+                        cost = (decimal?)10.0M,
+                        price = (decimal?)42.5M,
+                        consumedKwh = 15.0M
+                    }
+                }
+            };
+
+            _handler.SetupRequest(HttpMethod.Post, "https://public-api.monta.com/api/v1/auth/token")
+                .ReturnsResponse(JsonSerializer.Serialize(new { accessToken = "test-access-token" }), "application/json");
+
+            var fromDate = from.AddHours(MontaService.FetchHoursBeforeFrom).UtcDateTime;
+            var toDate = to.AddHours(MontaService.FetchHoursAfterTo).UtcDateTime;
+            _handler.SetupRequest(HttpMethod.Get, $"https://public-api.monta.com/api/v1/charges?state=completed&fromDate={fromDate:o}&toDate={toDate:o}&chargePointId=123")
+                .ReturnsResponse(JsonSerializer.Serialize(chargesResponse), "application/json");
+
+            var charges = (await _subject.GetCharges(from, to)).Charges.ToList();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(charges[0].Cost, Is.Null);
+                Assert.That(charges[1].Cost, Is.EqualTo(10.0M));
+            });
         }
     }
 }

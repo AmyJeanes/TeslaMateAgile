@@ -257,7 +257,13 @@ public class PriceManager : IPriceManager
         }
         var wholeChargeEnergy = CalculateEnergyUsed(charges, phases.Value);
         var mostAppropriateCharge = LocateMostAppropriateCharge(possibleCharges, wholeChargeEnergy, minDate, maxDate);
-        return (Math.Round(mostAppropriateCharge.Cost, 2), Math.Round(wholeChargeEnergy, 2));
+        // Checked after matching rather than filtered out before it, so a charge with no
+        // amount cannot let a different nearby one match in its place and record its cost
+        if (!mostAppropriateCharge.Cost.HasValue)
+        {
+            throw new Exception($"Matched charge from {mostAppropriateCharge.StartTime.UtcDateTime} UTC - {mostAppropriateCharge.EndTime.UtcDateTime} UTC has no cost reported by the provider");
+        }
+        return (Math.Round(mostAppropriateCharge.Cost.Value, 2), Math.Round(wholeChargeEnergy, 2));
     }
 
     public ProviderCharge LocateMostAppropriateCharge(IEnumerable<ProviderCharge> possibleCharges, decimal energyUsed, DateTimeOffset minDate, DateTimeOffset maxDate)

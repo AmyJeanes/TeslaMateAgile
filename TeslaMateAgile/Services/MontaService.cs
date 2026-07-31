@@ -111,11 +111,13 @@ namespace TeslaMateAgile.Services
             [JsonPropertyName("stoppedAt")]
             public DateTimeOffset StoppedAt { get; set; }
 
+            // Monta documents both as nullable, and deserialising a null into a
+            // non-nullable decimal throws for the whole response, not just this charge.
             [JsonPropertyName("cost")]
-            public decimal Cost { get; set; }
+            public decimal? Cost { get; set; }
 
             [JsonPropertyName("price")]
-            public decimal Price { get; set; }
+            public decimal? Price { get; set; }
 
             [JsonPropertyName("consumedKwh")]
             public decimal ConsumedKwh { get; set; }

@@ -183,5 +183,56 @@ namespace TeslaMateAgile.Tests.Services
 
             Assert.That(providerChargeData.Charges.First().Cost, Is.EqualTo(expectedCost));
         }
+
+        /// <summary>
+        /// Monta documents both amounts as nullable. A null must not stop the rest of the
+        /// response deserialising, since the charge we are actually looking for may be
+        /// another one in the same window.
+        /// </summary>
+        [Test]
+        public async Task GetCharges_ShouldReportNoCost_WhenMontaReportsNoAmount()
+        {
+            var from = DateTimeOffset.Parse("2024-10-17T00:00:00+00:00");
+            var to = DateTimeOffset.Parse("2024-10-17T15:00:00+00:00");
+
+            var chargesResponse = new
+            {
+                data = new[]
+                {
+                    new
+                    {
+                        startedAt = from,
+                        stoppedAt = to,
+                        cost = (decimal?)null,
+                        price = (decimal?)null,
+                        consumedKwh = 15.0M
+                    },
+                    new
+                    {
+                        startedAt = from,
+                        stoppedAt = to,
+                        cost = (decimal?)10.0M,
+                        price = (decimal?)42.5M,
+                        consumedKwh = 15.0M
+                    }
+                }
+            };
+
+            _handler.SetupRequest(HttpMethod.Post, "https://public-api.monta.com/api/v1/auth/token")
+                .ReturnsResponse(JsonSerializer.Serialize(new { accessToken = "test-access-token" }), "application/json");
+
+            var fromDate = from.AddHours(MontaService.FetchHoursBeforeFrom).UtcDateTime;
+            var toDate = to.AddHours(MontaService.FetchHoursAfterTo).UtcDateTime;
+            _handler.SetupRequest(HttpMethod.Get, $"https://public-api.monta.com/api/v1/charges?state=completed&fromDate={fromDate:o}&toDate={toDate:o}&chargePointId=123")
+                .ReturnsResponse(JsonSerializer.Serialize(chargesResponse), "application/json");
+
+            var charges = (await _subject.GetCharges(from, to)).Charges.ToList();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(charges[0].Cost, Is.Null);
+                Assert.That(charges[1].Cost, Is.EqualTo(10.0M));
+            });
+        }
     }
 }

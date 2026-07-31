@@ -244,6 +244,55 @@ public class PriceManagerTests
         Assert.That(expectedEnergy, Is.EqualTo(energy));
     }
 
+    [Test]
+    public void PriceManager_CalculateWholeChargeCost_ThrowsWhenTheMatchedChargeHasNoCost()
+    {
+        SetupWholePriceDataService(new List<ProviderCharge>
+        {
+            new ProviderCharge
+            {
+                Cost = null,
+                StartTime = DateTimeOffset.Parse("2023-08-24T23:30:00Z"),
+                EndTime = DateTimeOffset.Parse("2023-08-25T03:00:00Z")
+            }
+        });
+        _subject = _mocker.CreateInstance<PriceManager>();
+
+        var ex = Assert.ThrowsAsync<Exception>(() => _subject.CalculateChargeCost(TestHelpers.ImportCharges("exactmillisecond_test.csv")));
+        Assert.That(ex.Message, Does.Contain("has no cost reported by the provider"));
+    }
+
+    /// <summary>
+    /// A charge with no cost is kept in the running while matching rather than filtered out
+    /// beforehand, so it cannot hand its slot to a worse but priced charge nearby and have
+    /// that one's cost recorded against this charging process.
+    /// </summary>
+    [Test]
+    public void PriceManager_CalculateWholeChargeCost_DoesNotFallBackToAnotherChargeWhenTheBestMatchHasNoCost()
+    {
+        SetupWholePriceDataService(new List<ProviderCharge>
+        {
+            new ProviderCharge
+            {
+                Cost = null,
+                EnergyKwh = 21.4M,
+                StartTime = DateTimeOffset.Parse("2023-08-24T23:44:00Z"),
+                EndTime = DateTimeOffset.Parse("2023-08-25T03:19:00Z")
+            },
+            new ProviderCharge
+            {
+                Cost = 99.00M,
+                EnergyKwh = 21.4M,
+                StartTime = DateTimeOffset.Parse("2023-08-24T23:30:00Z"),
+                EndTime = DateTimeOffset.Parse("2023-08-25T03:00:00Z")
+            }
+        });
+        _subject = _mocker.CreateInstance<PriceManager>();
+
+        var ex = Assert.ThrowsAsync<Exception>(() => _subject.CalculateChargeCost(TestHelpers.ImportCharges("exactmillisecond_test.csv")));
+        Assert.That(ex.Message, Does.Contain("23:44:00"), "the closer unpriced charge should have been matched, not the priced one further away");
+    }
+
     private static readonly object[][] PriceManager_LocateMostAppropriateCharge_Cases = new object[][] {
             new object[]
             {

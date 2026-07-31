@@ -1,6 +1,6 @@
 image:
   repository: ghcr.io/amyjeanes/teslamateagile
-  tag: v1.22.0@sha256:9a5faa27cfbb190815a22b141d456307eaefabd81d07408d835d9e0ca4e5c72d
+  tag: v1.23.0@sha256:5e6b18c1bec197ea2afdcc5feafc876c3eb0040f168e985fd2031c2371abdf1d
   pullPolicy: IfNotPresent
 resources:
   requests:

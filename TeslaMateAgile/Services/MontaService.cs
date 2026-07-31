@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using TeslaMateAgile.Data;
+using TeslaMateAgile.Data.Enums;
 using TeslaMateAgile.Data.Options;
 using TeslaMateAgile.Helpers.Interfaces;
 using TeslaMateAgile.Services.Interfaces;
@@ -34,7 +35,12 @@ namespace TeslaMateAgile.Services
             var charges = await GetCharges(accessToken, from, to);
             return new ProviderChargeData(charges.Select(x => new ProviderCharge
             {
-                Cost = x.Cost,
+                Cost = _options.PriceType switch
+                {
+                    MontaPriceType.Cost => x.Cost,
+                    MontaPriceType.Price => x.Price,
+                    _ => throw new ArgumentOutOfRangeException(nameof(_options.PriceType))
+                },
                 EnergyKwh = x.ConsumedKwh,
                 StartTime = x.StartedAt,
                 EndTime = x.StoppedAt
@@ -107,6 +113,9 @@ namespace TeslaMateAgile.Services
 
             [JsonPropertyName("cost")]
             public decimal Cost { get; set; }
+
+            [JsonPropertyName("price")]
+            public decimal Price { get; set; }
 
             [JsonPropertyName("consumedKwh")]
             public decimal ConsumedKwh { get; set; }

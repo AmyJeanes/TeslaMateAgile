@@ -1,0 +1,13 @@
+{
+  "total": 8,
+  "records": [
+    { "TimeUTC": "2026-06-07T13:30:00", "PriceArea": "DK2", "DayAheadPriceDKK": 0, "DayAheadPriceEUR": 0 },
+    { "TimeUTC": "2026-06-07T13:45:00", "PriceArea": "DK2", "DayAheadPriceDKK": 0, "DayAheadPriceEUR": 0 },
+    { "TimeUTC": "2026-06-07T14:00:00", "PriceArea": "DK2", "DayAheadPriceDKK": 0, "DayAheadPriceEUR": 0 },
+    { "TimeUTC": "2026-06-07T14:15:00", "PriceArea": "DK2", "DayAheadPriceDKK": 0, "DayAheadPriceEUR": 0 },
+    { "TimeUTC": "2026-06-07T14:30:00", "PriceArea": "DK2", "DayAheadPriceDKK": 0, "DayAheadPriceEUR": 0 },
+    { "TimeUTC": "2026-06-07T14:45:00", "PriceArea": "DK2", "DayAheadPriceDKK": 0, "DayAheadPriceEUR": 0 },
+    { "TimeUTC": "2026-06-07T15:00:00", "PriceArea": "DK2", "DayAheadPriceDKK": 0, "DayAheadPriceEUR": 0 },
+    { "TimeUTC": "2026-06-07T15:15:00", "PriceArea": "DK2", "DayAheadPriceDKK": 0, "DayAheadPriceEUR": 0 }
+  ]
+}

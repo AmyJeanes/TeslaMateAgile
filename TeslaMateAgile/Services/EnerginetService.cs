@@ -15,6 +15,12 @@ public class EnerginetService : IDynamicPriceDataService
     private readonly EnerginetOptions _options;
     private readonly FixedPriceService _fixedPriceService;
 
+    /// <summary>
+    /// Length of a single Energinet day ahead record. The dataset moved from hourly to
+    /// quarter hourly resolution on 1 October 2025.
+    /// </summary>
+    private static readonly TimeSpan RecordDuration = TimeSpan.FromMinutes(15);
+
     public EnerginetService(HttpClient client, IRateLimitHelper rateLimitHelper, IOptions<EnerginetOptions> options)
     {
         _client = client;
@@ -42,11 +48,14 @@ public class EnerginetService : IDynamicPriceDataService
         {
             foreach (var record in EnerginetResponse.Records)
             {
+                var recordFrom = record.TimeUTC;
+                var recordTo = record.TimeUTC.Add(RecordDuration);
+
                 decimal fixedPrice = 0;
                 if (_fixedPriceService != null)
                 {
-                    var fixedPriceData = await _fixedPriceService.GetPriceData(record.TimeUTC, record.TimeUTC.AddHours(1));
-                    fixedPrice = fixedPriceData.Prices.Sum(p => p.Value);
+                    var fixedPriceData = await _fixedPriceService.GetPriceData(recordFrom, recordTo);
+                    fixedPrice = WeightedFixedPrice(fixedPriceData.Prices, recordFrom, recordTo);
                 }
 
                 var spotPrice = _options.Currency switch
@@ -68,14 +77,39 @@ public class EnerginetService : IDynamicPriceDataService
                 }
                 prices.Add(new Price
                 {
-                    ValidFrom = record.TimeUTC,
-                    ValidTo = record.TimeUTC.AddMinutes(15),
+                    ValidFrom = recordFrom,
+                    ValidTo = recordTo,
                     Value = price
                 });
             }
         }
 
         return new PriceData(prices);
+    }
+
+    /// <summary>
+    /// Combines the fixed prices that overlap a single record, weighted by how much of the
+    /// record each one covers. Summing them outright would count a fixed price in full even
+    /// when it only applies to part of the record, which happens whenever a fixed price
+    /// boundary falls inside it.
+    /// </summary>
+    private static decimal WeightedFixedPrice(IEnumerable<Price> fixedPrices, DateTimeOffset recordFrom, DateTimeOffset recordTo)
+    {
+        var recordTicks = (decimal)(recordTo - recordFrom).Ticks;
+        if (recordTicks <= 0) { return 0; }
+
+        var weighted = 0M;
+        foreach (var fixedPrice in fixedPrices)
+        {
+            var overlapFrom = fixedPrice.ValidFrom > recordFrom ? fixedPrice.ValidFrom : recordFrom;
+            var overlapTo = fixedPrice.ValidTo < recordTo ? fixedPrice.ValidTo : recordTo;
+            var overlapTicks = (decimal)(overlapTo - overlapFrom).Ticks;
+            if (overlapTicks <= 0) { continue; }
+
+            weighted += fixedPrice.Value * (overlapTicks / recordTicks);
+        }
+
+        return weighted;
     }
 
     private class EnerginetResponse

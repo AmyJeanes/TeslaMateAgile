@@ -364,6 +364,14 @@ To workaround this issue, you can set the `TeslaMate__Phases` environment variab
 
 If you have enabled rate limiting using the `TeslaMate__RateLimitMaxRequests` and `TeslaMate__RateLimitPeriodSeconds` or your energy provider has default rate limits configured (e.g. Monta), TeslaMateAgile automatically backs off the providers API to avoid getting blocked.
 
+If instead you see an error like this, the limit is smaller than the number of requests that one charge costs, and that charge will never be priced however long it keeps retrying:
+
+```
+fail: TeslaMateAgile.Helpers.RateLimitHelper[0] This charge asked for more requests from the energy provider than the rate limit allows in one whole period, so it cannot be priced however often it is retried. Raise TeslaMate__RateLimitMaxRequests to at least 2, it is currently 1 per 10 second(s)
+```
+
+How many requests a charge costs depends on the energy provider, and for some it depends on how long the charge is as well, so other charges may still be priced under the same limit.
+
 ### Why am I seeing a warning about using a legacy docker image?
 
 If you are seeing a warning in the logs like this:

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using Moq;
 using Moq.AutoMock;
 using NUnit.Framework;
@@ -9,6 +10,7 @@ using TeslaMateAgile.Data;
 using TeslaMateAgile.Data.Options;
 using TeslaMateAgile.Data.TeslaMate;
 using TeslaMateAgile.Data.TeslaMate.Entities;
+using TeslaMateAgile.Helpers;
 using TeslaMateAgile.Helpers.Interfaces;
 using TeslaMateAgile.Managers;
 using TeslaMateAgile.Services.Interfaces;
@@ -850,6 +852,149 @@ public class PriceManagerTests
             Assert.That(context.ChargingProcesses.Single(x => x.Id == 1).Cost, Is.Not.Null, "the charge inside the configured geofence should have been priced");
             Assert.That(context.ChargingProcesses.Single(x => x.Id == 2).Cost, Is.Null, "the charge outside any geofence should have been left alone");
         });
+    }
+
+    /// <summary>
+    /// The behaviour lives in the seam between the manager and the limiter, so these two wire the real
+    /// limiter in rather than a mock. Charges that fit the limit between them must not be reported as
+    /// impossible just because the last one runs out of period.
+    /// </summary>
+    [Test]
+    public async Task PriceManager_Update_DoesNotReportAnImpossibleLimitWhenTheLimitIsMerelySpent()
+    {
+        using var context = CreateTwoChargingProcessesInGeofence();
+        var rateLimitLogger = new Mock<ILogger<RateLimitHelper>>();
+
+        await RunUpdateWithRealRateLimitHelper(context, rateLimitLogger, rateLimitMaxRequests: 3, requestsPerCharge: 2);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(context.ChargingProcesses.Single(x => x.Id == 1).Cost, Is.Not.Null, "the first charge fits the limit and should have been priced");
+            Assert.That(context.ChargingProcesses.Single(x => x.Id == 2).Cost, Is.Null, "the second charge runs out of period and should be left for the next run");
+        });
+
+        VerifyImpossibleLimitReported(rateLimitLogger, Times.Never());
+    }
+
+    /// <summary>
+    /// And the case this exists for. A limit smaller than one charge costs fails at the same point on
+    /// every run forever, which until now was logged as the same warning as ordinary back pressure.
+    /// </summary>
+    [Test]
+    public async Task PriceManager_Update_ReportsALimitTooSmallForASingleCharge()
+    {
+        using var context = CreateTwoChargingProcessesInGeofence();
+        var rateLimitLogger = new Mock<ILogger<RateLimitHelper>>();
+
+        await RunUpdateWithRealRateLimitHelper(context, rateLimitLogger, rateLimitMaxRequests: 1, requestsPerCharge: 2);
+
+        Assert.That(context.ChargingProcesses.Any(x => x.Cost.HasValue), Is.False, "no charge can be priced under a limit smaller than one charge costs");
+
+        VerifyImpossibleLimitReported(rateLimitLogger, Times.Once(), "Raise TeslaMate__RateLimitMaxRequests to at least 2", "currently 1 per 60 second(s)");
+    }
+
+    private async Task RunUpdateWithRealRateLimitHelper(TeslaMateDbContext context, Mock<ILogger<RateLimitHelper>> rateLimitLogger, int rateLimitMaxRequests, int requestsPerCharge)
+    {
+        var options = Options.Create(new TeslaMateOptions
+        {
+            GeofenceId = 1,
+            Phases = 1,
+            MatchingStartToleranceMinutes = 30,
+            MatchingEndToleranceMinutes = 120,
+            MatchingEnergyToleranceRatio = 0.1M,
+            RateLimitMaxRequests = rateLimitMaxRequests,
+            RateLimitPeriodSeconds = 60
+        });
+
+        var rateLimitHelper = new RateLimitHelper(rateLimitLogger.Object, options, new FakeTimeProvider(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero)));
+
+        _mocker.Use(context);
+        _mocker.Use(options);
+        _mocker.Use<IRateLimitHelper>(rateLimitHelper);
+        _mocker.Use<IPriceDataService>(new RequestSpendingPriceDataService(rateLimitHelper, requestsPerCharge));
+
+        _subject = _mocker.CreateInstance<PriceManager>();
+
+        await _subject.Update();
+    }
+
+    private static void VerifyImpossibleLimitReported(Mock<ILogger<RateLimitHelper>> rateLimitLogger, Times times, params string[] expectedFragments)
+    {
+        rateLimitLogger.Verify(
+            x => x.Log(
+                LogLevel.Error,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, _) => expectedFragments.All(f => v.ToString()!.Contains(f))),
+                null,
+                It.IsAny<Func<It.IsAnyType, Exception, string>>()),
+            times);
+    }
+
+    /// <summary>
+    /// Spends a fixed number of rate limited requests per charge, like a provider that needs a token
+    /// before it can look anything up. Uses the dynamic price interface for simplicity; which interface
+    /// the requests come from makes no difference to the limiter.
+    /// </summary>
+    private class RequestSpendingPriceDataService : IDynamicPriceDataService
+    {
+        private readonly IRateLimitHelper _rateLimitHelper;
+        private readonly int _requestsPerCharge;
+
+        public RequestSpendingPriceDataService(IRateLimitHelper rateLimitHelper, int requestsPerCharge)
+        {
+            _rateLimitHelper = rateLimitHelper;
+            _requestsPerCharge = requestsPerCharge;
+        }
+
+        public Task<PriceData> GetPriceData(DateTimeOffset from, DateTimeOffset to)
+        {
+            for (var i = 0; i < _requestsPerCharge; i++)
+            {
+                _rateLimitHelper.AddRequest();
+            }
+
+            return Task.FromResult(new PriceData(new List<Price>
+            {
+                new Price
+                {
+                    ValidFrom = DateTimeOffset.UtcNow.AddHours(-6),
+                    ValidTo = DateTimeOffset.UtcNow,
+                    Value = 1
+                }
+            }));
+        }
+    }
+
+    private static TeslaMateDbContext CreateTwoChargingProcessesInGeofence()
+    {
+        var context = CreateInMemoryContext();
+        context.Geofences.Add(new Geofence { Id = 1, Name = "Home" });
+
+        foreach (var (processId, hoursAgo) in new[] { (1, 2), (2, 4) })
+        {
+            var charge = new Charge
+            {
+                Id = processId,
+                ChargeEnergyAdded = 1,
+                ChargerPower = 1,
+#pragma warning disable CS0618
+                DateInternal = DateTime.UtcNow.AddHours(-hoursAgo)
+#pragma warning restore CS0618
+            };
+            var processEntity = new ChargingProcess
+            {
+                Id = processId,
+                GeofenceId = 1,
+                StartDate = DateTime.UtcNow.AddHours(-hoursAgo),
+                EndDate = DateTime.UtcNow.AddHours(-hoursAgo).AddMinutes(30),
+                Charges = new List<Charge> { charge }
+            };
+            charge.ChargingProcess = processEntity;
+            context.ChargingProcesses.Add(processEntity);
+        }
+
+        context.SaveChanges();
+        return context;
     }
 
     private static TeslaMateDbContext CreateGeofencedAndUngeofencedProcesses()

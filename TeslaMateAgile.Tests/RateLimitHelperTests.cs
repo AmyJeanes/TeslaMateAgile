@@ -100,6 +100,111 @@ public class RateLimitHelperTests
         Assert.That(subject.GetNextReset(), Is.EqualTo(_timeProvider.GetUtcNow().AddSeconds(_options.RateLimitPeriodSeconds)));
     }
 
+    /// <summary>
+    /// A charge that on its own asks for more requests than a whole period allows can never be priced
+    /// however often it is retried, so it is a configuration fault and must be reported as one rather
+    /// than looking like the back pressure the limit exists to apply.
+    /// </summary>
+    [Test]
+    public void AddRequest_LogsErrorWhenOneChargeCannotFitTheLimit()
+    {
+        _options.RateLimitMaxRequests = 2;
+        var subject = CreateSubject();
+
+        subject.BeginChargeCalculation();
+        subject.AddRequest();
+        subject.AddRequest();
+
+        Assert.That(() => subject.AddRequest(), Throws.TypeOf<RateLimitException>());
+
+        VerifyErrorLogged(Times.Once(), "Raise TeslaMate__RateLimitMaxRequests to at least 3", "currently 2 per 60 second(s)");
+    }
+
+    /// <summary>
+    /// The boundary matters more than either side of it: a charge needing exactly the whole limit is
+    /// priceable, so reporting it would send every correctly configured user chasing a setting that is
+    /// already right.
+    /// </summary>
+    [Test]
+    public void AddRequest_DoesNotLogErrorWhenAChargeNeedsExactlyTheWholeLimit()
+    {
+        _options.RateLimitMaxRequests = 3;
+        var subject = CreateSubject();
+
+        // an earlier charge takes a request, so this one runs out one short of finishing even though
+        // three requests, the whole limit, would have been enough on a period of its own
+        subject.BeginChargeCalculation();
+        subject.AddRequest();
+
+        subject.BeginChargeCalculation();
+        subject.AddRequest();
+        subject.AddRequest();
+
+        Assert.That(() => subject.AddRequest(), Throws.TypeOf<RateLimitException>());
+
+        VerifyErrorLogged(Times.Never());
+    }
+
+    /// <summary>
+    /// The same exception is thrown when earlier charges have used the period up, but that is the limit
+    /// working as intended, so nothing is wrong to report.
+    /// </summary>
+    [Test]
+    public void AddRequest_DoesNotLogErrorWhenTheLimitIsSpentByEarlierCharges()
+    {
+        var subject = CreateSubject();
+
+        subject.BeginChargeCalculation();
+        subject.AddRequest();
+        subject.AddRequest();
+
+        subject.BeginChargeCalculation();
+        subject.AddRequest();
+
+        Assert.That(() => subject.AddRequest(), Throws.TypeOf<RateLimitException>());
+
+        VerifyErrorLogged(Times.Never());
+    }
+
+    /// <summary>
+    /// A calculation may span a period boundary, and the requests it made before the reset are no longer
+    /// held against the limit, so they must not be held against the charge either. Otherwise how long the
+    /// provider takes to answer decides whether the charge is reported as impossible.
+    /// </summary>
+    [Test]
+    public void AddRequest_CountsOnlyTheRequestsMadeSinceThePeriodResetAgainstTheCharge()
+    {
+        _options.RateLimitMaxRequests = 2;
+        var subject = CreateSubject();
+
+        subject.BeginChargeCalculation();
+        subject.AddRequest();
+        subject.AddRequest();
+
+        _timeProvider.Advance(TimeSpan.FromSeconds(61));
+
+        subject.AddRequest();
+        subject.AddRequest();
+
+        Assert.That(() => subject.AddRequest(), Throws.TypeOf<RateLimitException>());
+
+        // three requests since the reset, not the five the charge has made in total, otherwise how long
+        // the provider takes to answer would change the number the user is told to configure
+        VerifyErrorLogged(Times.Once(), "to at least 3");
+    }
+
+    private void VerifyErrorLogged(Times times, params string[] expectedFragments)
+    {
+        _loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Error,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, _) => expectedFragments.All(f => v.ToString()!.Contains(f))),
+                null,
+                It.IsAny<Func<It.IsAnyType, Exception, string>>()),
+            times);
+    }
+
     private RateLimitHelper CreateSubject()
     {
         return new RateLimitHelper(_loggerMock.Object, Options.Create(_options), _timeProvider);

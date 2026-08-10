@@ -94,6 +94,7 @@ public class PriceManager : IPriceManager
                 _logger.LogWarning("Rate limit reached, stopping price calculations for this run, resets at: {RateLimitReset}", _rateLimitHelper.GetNextReset());
                 break;
             }
+            _rateLimitHelper.BeginChargeCalculation();
             try
             {
                 if (chargingProcess.Charges == null) { _logger.LogError("Could not find charges on charging process {Id}", chargingProcess.Id); TryMarkAsUncalculable(chargingProcess, "missing charge data"); continue; }

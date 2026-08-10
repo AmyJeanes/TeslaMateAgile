@@ -15,6 +15,7 @@ public class RateLimitHelper : IRateLimitHelper
     private int _rateLimitMaxRequests;
     private int _rateLimitPeriodSeconds;
     private int _currentRequestCount = 0;
+    private int _requestsForCurrentCharge = 0;
     private DateTimeOffset _periodStartTime;
 
     public RateLimitHelper(
@@ -42,11 +43,25 @@ public class RateLimitHelper : IRateLimitHelper
         return this;
     }
 
+    public void BeginChargeCalculation()
+    {
+        _requestsForCurrentCharge = 0;
+    }
+
     public void AddRequest()
     {
         if (!Check()) return;
+        _requestsForCurrentCharge++;
         if (_currentRequestCount + 1 > _rateLimitMaxRequests)
         {
+            // Asking for more than a whole period allows is a configuration fault rather than the back
+            // pressure the limit exists to apply, and no number of retries will get past it. Only this
+            // charge is claimed to be stuck: how many requests a charge costs varies by provider and by
+            // the period the charge spans, so other charges may well be priced under the same limit.
+            if (_requestsForCurrentCharge > _rateLimitMaxRequests)
+            {
+                _logger.LogError("This charge asked for more requests from the energy provider than the rate limit allows in one whole period, so it cannot be priced however often it is retried. Raise TeslaMate__RateLimitMaxRequests to at least {RequestsRequired}, it is currently {RateLimitMaxRequests} per {RateLimitPeriodSeconds} second(s)", _requestsForCurrentCharge, _rateLimitMaxRequests, _rateLimitPeriodSeconds);
+            }
             throw new RateLimitException();
         }
         _currentRequestCount++;
@@ -79,6 +94,7 @@ public class RateLimitHelper : IRateLimitHelper
             _logger.LogDebug("Rate limit period has elapsed. Resetting request count");
             _periodStartTime = now;
             _currentRequestCount = 0;
+            _requestsForCurrentCharge = 0;
         }
         return true;
     }

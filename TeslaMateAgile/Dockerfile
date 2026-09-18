@@ -9,7 +9,7 @@ ENV TESLAMATE_LEGACY_IMAGE_WARNING=${legacy_image_warning}
 USER app
 WORKDIR /app
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0@sha256:2fa828c68761b1b8c23d7662dc134421b9d3b59fe1425fdbc80804e390cdb24d AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0@sha256:335dfd6679df1025209964f3e2592c0f1808501d17b9295640fd1a41d132c117 AS build
 ARG BUILD_CONFIGURATION=Release
 ARG version
 ARG informational_version

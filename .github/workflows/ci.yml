@@ -221,7 +221,7 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
     
     - name: Connect to Kubernetes
-      uses: AmyJeanes/Abyss-Infrastructure/.github/actions/connect-k8s@8b6960c8727ada0f899eedea5e46dbddc4a9c7de # main
+      uses: AmyJeanes/Abyss-Infrastructure/.github/actions/connect-k8s@d0df888da3764d3f32e26d46292f017d5f0f495b # main
       with:
         kubeconfig: "${{ secrets.KUBECONFIG }}"
         hostname: "${{ vars.KUBERNETES_API_HOSTNAME }}"
@@ -241,4 +241,4 @@ jobs:
 
     - name: Disconnect from Kubernetes
       if: always()
-      uses: AmyJeanes/Abyss-Infrastructure/.github/actions/disconnect-k8s@8b6960c8727ada0f899eedea5e46dbddc4a9c7de # main
+      uses: AmyJeanes/Abyss-Infrastructure/.github/actions/disconnect-k8s@d0df888da3764d3f32e26d46292f017d5f0f495b # main

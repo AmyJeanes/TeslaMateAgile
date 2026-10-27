@@ -157,12 +157,12 @@ The EDF Tempo provider allows you to use TeslaMateAgile with the EDF Tempo tarif
 ```yaml
 - TeslaMate__EnergyProvider=EDFTempo
 - EDFTempo__BaseUrl=https://www.api-couleur-tempo.fr/api/joursTempo # EDF Tempo API endpoint
-- EDFTempo__BLUE_HP=0.1612 # Blue day peak hours price (€/kWh)
-- EDFTempo__BLUE_HC=0.1325 # Blue day off-peak hours price (€/kWh)
-- EDFTempo__WHITE_HP=0.1871 # White day peak hours price (€/kWh)
-- EDFTempo__WHITE_HC=0.1499 # White day off-peak hours price (€/kWh)
-- EDFTempo__RED_HP=0.7060 # Red day peak hours price (€/kWh)
-- EDFTempo__RED_HC=0.1575 # Red day off-peak hours price (€/kWh)
+- EDFTempo__BLUE_HP=0.1654 # Blue day peak hours price (€/kWh)
+- EDFTempo__BLUE_HC=0.1356 # Blue day off-peak hours price (€/kWh)
+- EDFTempo__WHITE_HP=0.1921 # White day peak hours price (€/kWh)
+- EDFTempo__WHITE_HC=0.1536 # White day off-peak hours price (€/kWh)
+- EDFTempo__RED_HP=0.7295 # Red day peak hours price (€/kWh)
+- EDFTempo__RED_HC=0.1615 # Red day off-peak hours price (€/kWh)
 ```
 
 **Note:** EDF Tempo pricing uses French time (Central European Time) and follows this schedule:
@@ -313,12 +313,12 @@ EDF Tempo pricing uses French time (Central European Time) and follows this sche
 You can configure the pricing for each day color and time period using the following environment variables (example prices as of February 2026):
 
 ```yaml
-- EDFTempo__BLUE_HP=0.1612 # Blue day peak hours price (€/kWh)
-- EDFTempo__BLUE_HC=0.1325 # Blue day off-peak hours price (€/kWh)
-- EDFTempo__WHITE_HP=0.1871 # White day peak hours price (€/kWh)
-- EDFTempo__WHITE_HC=0.1499 # White day off-peak hours price (€/kWh)
-- EDFTempo__RED_HP=0.7060 # Red day peak hours price (€/kWh)
-- EDFTempo__RED_HC=0.1575 # Red day off-peak hours price (€/kWh)
+- EDFTempo__BLUE_HP=0.1654 # Blue day peak hours price (€/kWh)
+- EDFTempo__BLUE_HC=0.1356 # Blue day off-peak hours price (€/kWh)
+- EDFTempo__WHITE_HP=0.1921 # White day peak hours price (€/kWh)
+- EDFTempo__WHITE_HC=0.1536 # White day off-peak hours price (€/kWh)
+- EDFTempo__RED_HP=0.7295 # Red day peak hours price (€/kWh)
+- EDFTempo__RED_HC=0.1615 # Red day off-peak hours price (€/kWh)
 ```
 
 **Important:** These prices are subject to change. Always verify and use the latest pricing from [EDF Tempo](https://particulier.edf.fr/fr/accueil/gestion-contrat/options/tempo/details.html) for accurate cost calculations.

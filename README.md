@@ -169,7 +169,7 @@ The EDF Tempo provider allows you to use TeslaMateAgile with the EDF Tempo tarif
 - Off-peak hours: 22:00-06:00
 - Peak hours: 06:00-22:00
 
-**Important:** The prices shown in this README may not reflect the current EDF Tempo rates. Please verify and use the latest pricing from [EDF Tempo](https://particulier.edf.fr/fr/accueil/gestion-contrat/options/tempo/details.html) for your configuration.
+**Important:** The prices shown in this README are examples as of August 2026 and may not reflect the current EDF Tempo rates. Please verify and use the latest pricing from [EDF Tempo](https://particulier.edf.fr/fr/accueil/gestion-contrat/options/tempo/details.html) for your configuration.
 
 ### PGE (Pacific Gas & Electric)
 
@@ -310,7 +310,7 @@ EDF Tempo pricing uses French time (Central European Time) and follows this sche
 - Off-peak hours: 22:00-06:00
 - Peak hours: 06:00-22:00
 
-You can configure the pricing for each day color and time period using the following environment variables (example prices as of February 2026):
+You can configure the pricing for each day color and time period using the following environment variables (example prices as of August 2026):
 
 ```yaml
 - EDFTempo__BLUE_HP=0.1654 # Blue day peak hours price (€/kWh)

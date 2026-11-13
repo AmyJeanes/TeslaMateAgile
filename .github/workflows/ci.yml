@@ -13,6 +13,11 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Drafts the release
+      packages: write # Pushes the image
+      id-token: write # Signs the attestation
+      attestations: write # Stores it
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
     
@@ -54,27 +59,34 @@ jobs:
             --output ./output/TeslaMateAgile-$runtime
         done
         
-    - name: Build Docker images
+    # Named as Docker names the architectures, for the Dockerfile's TARGETARCH. The image has the runtime already
+    - name: Publish for the Docker image
       run: |
-        arches=(amd64 arm32v7 arm64v8)
-        for appname in TeslaMateAgile; do
-          app=`echo $appname | tr '[:upper:]' '[:lower:]'`
-          for arch in "${arches[@]}"; do
-            fullarch="resolute-$arch"
-            echo "Building $appname image for $arch"
-            docker build -t $app:$arch -f "$appname/Dockerfile" . \
-              --build-arg arch=$fullarch \
-              --build-arg version=${{ steps.variables.outputs.ASSEMBLY_VERSION }} \
-              --build-arg informational_version=${{ steps.variables.outputs.ASSEMBLY_INFORMATIONAL_VERSION }}
-            echo "Building $appname image for $arch with legacy image warning"
-            docker build -t $app:legacy-$arch -f "$appname/Dockerfile" . \
-              --build-arg arch=$fullarch \
-              --build-arg version=${{ steps.variables.outputs.ASSEMBLY_VERSION }} \
-              --build-arg informational_version=${{ steps.variables.outputs.ASSEMBLY_INFORMATIONAL_VERSION }} \
-              --build-arg legacy_image_warning=true
-          done
+        for arch in amd64:linux-x64 arm64:linux-arm64 arm:linux-arm; do
+          dotnet publish ./TeslaMateAgile/TeslaMateAgile.csproj \
+            -p:Version=${{ steps.variables.outputs.ASSEMBLY_VERSION }} \
+            -p:InformationalVersion=${{ steps.variables.outputs.ASSEMBLY_INFORMATIONAL_VERSION }} \
+            -p:UseAppHost=false \
+            --self-contained false \
+            --runtime ${arch#*:} \
+            --output ./image/${arch%:*}
         done
-      
+
+    - name: Let Docker run Arm
+      run: docker run --rm --privileged tonistiigi/binfmt:qemu-v10.2.3@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0 --install arm64,arm
+
+    # Docker's default builder can't make one image for several architectures
+    - name: Set up Buildx
+      uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+
+    # One at a time, as only one can be loaded to run. The pushes reuse the cache
+    - name: Check the image runs
+      run: |
+        for platform in linux/amd64 linux/arm64 linux/arm/v7; do
+          docker buildx build --platform "$platform" --file TeslaMateAgile/Dockerfile --load --tag teslamateagile-test image
+          docker run --rm --platform "$platform" --entrypoint sh teslamateagile-test -c 'test -f TeslaMateAgile.dll && dotnet --list-runtimes'
+        done
+
     - name: Upload a Build Artifact
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
       with:
@@ -99,97 +111,68 @@ jobs:
         name: TeslaMateAgile-win-x64
         path: ./output/TeslaMateAgile-win-x64
         
+    - name: Docker tags
+      id: tags
+      if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
+      run: |
+        if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+          versions="$VERSION"
+          if [[ $VERSION =~ "-" ]]; then
+            echo "Pre-release version detected, not setting latest tag"
+          else
+            versions+=" latest"
+          fi
+        else
+          versions="edge"
+        fi
+        echo "versions=$versions" >> $GITHUB_OUTPUT
+      env:
+        VERSION: ${{ steps.variables.outputs.VERSION }}
+
     - name: Push Docker images (Deprecated - Docker Hub)
+      if: steps.tags.outcome == 'success'
       run: |
         echo $DOCKER_PASSWORD | docker login --username $DOCKER_USERNAME --password-stdin
-        for appname in TeslaMateAgile; do
-          app=`echo $appname | tr '[:upper:]' '[:lower:]'`
-          echo "Deploying $appname"
-          versions=()
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            for arch in amd64 arm32v7 arm64v8; do
-              docker tag $app:legacy-$arch $DOCKER_USERNAME/$app:latest-$arch
-              docker tag $app:legacy-$arch $DOCKER_USERNAME/$app:$VERSION-$arch
-            done
-            versions=($VERSION)
-            if [[ $VERSION =~ "-" ]]; then
-              echo "Pre-release version detected, not setting latest tag"
-            else
-              versions+=("latest")
-              echo "Adding latest tag"
-            fi
-          elif [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
-            for arch in amd64 arm32v7 arm64v8; do
-              docker tag $app:legacy-$arch $DOCKER_USERNAME/$app:edge-$arch
-            done
-            versions=("edge")
-            echo "Main branch detected, tagging as edge"
-          fi
-          for ver in "${versions[@]}"; do
-            echo "Deploying version $ver"
-            for arch in amd64 arm32v7 arm64v8; do
-              echo "Pushing docker tag $ver-arch"
-              docker push $DOCKER_USERNAME/$app:$ver-$arch
-            done
-            docker manifest create $DOCKER_USERNAME/$app:$ver $DOCKER_USERNAME/$app:$ver-amd64 $DOCKER_USERNAME/$app:$ver-arm32v7 $DOCKER_USERNAME/$app:$ver-arm64v8
-            docker manifest annotate $DOCKER_USERNAME/$app:$ver $DOCKER_USERNAME/$app:$ver-amd64 --os linux --arch amd64
-            docker manifest annotate $DOCKER_USERNAME/$app:$ver $DOCKER_USERNAME/$app:$ver-arm32v7 --os linux --arch arm
-            docker manifest annotate $DOCKER_USERNAME/$app:$ver $DOCKER_USERNAME/$app:$ver-arm64v8 --os linux --arch arm64
-            docker manifest push $DOCKER_USERNAME/$app:$ver
-          done
-        done
+        tags=()
+        for ver in $VERSIONS; do tags+=(--tag "$DOCKER_USERNAME/teslamateagile:$ver"); done
+        docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7 --file TeslaMateAgile/Dockerfile "${tags[@]}" \
+          --build-arg legacy_image_warning=true \
+          --label "org.opencontainers.image.version=$IMAGE_VERSION" --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+          --provenance false --push image
       env:
         DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
         DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-        DOCKER_CLI_EXPERIMENTAL: enabled
-        VERSION: ${{ steps.variables.outputs.VERSION }}
-      if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
+        VERSIONS: ${{ steps.tags.outputs.versions }}
+        IMAGE_VERSION: ${{ steps.variables.outputs.ASSEMBLY_INFORMATIONAL_VERSION }}
 
+    # GHCR lists Buildx's own provenance as an unknown/unknown platform, and the attestation below covers it anyway
+    # (https://github.com/orgs/community/discussions/45969)
     - name: Push Docker images (GitHub Container Registry)
+      id: push
+      if: steps.tags.outcome == 'success'
       run: |
+        image=ghcr.io/amyjeanes/teslamateagile
+        echo "image=$image" >> $GITHUB_OUTPUT
         echo $GITHUB_TOKEN | docker login ghcr.io --username amyjeanes --password-stdin
-        for appname in TeslaMateAgile; do
-          app=`echo $appname | tr '[:upper:]' '[:lower:]'`
-          echo "Deploying $appname"
-          versions=()
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            for arch in amd64 arm32v7 arm64v8; do
-              docker tag $app:$arch ghcr.io/amyjeanes/$app:latest-$arch
-              docker tag $app:$arch ghcr.io/amyjeanes/$app:$VERSION-$arch
-            done
-            versions=($VERSION)
-            if [[ $VERSION =~ "-" ]]; then
-              echo "Pre-release version detected, not setting latest tag"
-            else
-              versions+=("latest")
-              echo "Adding latest tag"
-            fi
-          elif [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
-            for arch in amd64 arm32v7 arm64v8; do
-              docker tag $app:$arch ghcr.io/amyjeanes/$app:edge-$arch
-            done
-            versions=("edge")
-            echo "Main branch detected, tagging as edge"
-          fi
-          for ver in "${versions[@]}"; do
-            echo "Deploying version $ver"
-            for arch in amd64 arm32v7 arm64v8; do
-              echo "Pushing docker tag $ver-arch"
-              docker push ghcr.io/amyjeanes/$app:$ver-$arch
-            done
-            docker manifest create ghcr.io/amyjeanes/$app:$ver ghcr.io/amyjeanes/$app:$ver-amd64 ghcr.io/amyjeanes/$app:$ver-arm32v7 ghcr.io/amyjeanes/$app:$ver-arm64v8
-            docker manifest annotate ghcr.io/amyjeanes/$app:$ver ghcr.io/amyjeanes/$app:$ver-amd64 --os linux --arch amd64
-            docker manifest annotate ghcr.io/amyjeanes/$app:$ver ghcr.io/amyjeanes/$app:$ver-arm32v7 --os linux --arch arm
-            docker manifest annotate ghcr.io/amyjeanes/$app:$ver ghcr.io/amyjeanes/$app:$ver-arm64v8 --os linux --arch arm64
-            docker manifest push ghcr.io/amyjeanes/$app:$ver
-          done
-        done
+        tags=()
+        for ver in $VERSIONS; do tags+=(--tag "$image:$ver"); done
+        docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7 --file TeslaMateAgile/Dockerfile "${tags[@]}" \
+          --label "org.opencontainers.image.version=$IMAGE_VERSION" --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+          --provenance false --metadata-file metadata.json --push image
+        echo "digest=$(jq --raw-output '."containerimage.digest"' metadata.json)" >> $GITHUB_OUTPUT
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        DOCKER_CLI_EXPERIMENTAL: enabled
-        VERSION: ${{ steps.variables.outputs.VERSION }}
-      if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
-        
+        VERSIONS: ${{ steps.tags.outputs.versions }}
+        IMAGE_VERSION: ${{ steps.variables.outputs.ASSEMBLY_INFORMATIONAL_VERSION }}
+
+    - name: Attest
+      if: steps.push.outcome == 'success'
+      uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+      with:
+        subject-name: ${{ steps.push.outputs.image }}
+        subject-digest: ${{ steps.push.outputs.digest }}
+        push-to-registry: true
+
     - name: Zip project
       run: |
         cd ./output/TeslaMateAgile-linux-x64

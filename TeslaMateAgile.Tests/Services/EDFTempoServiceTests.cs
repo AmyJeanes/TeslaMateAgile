@@ -194,14 +194,14 @@ public class EDFTempoServiceTests
     }
 
     [Test]
-    public void GetPriceData_PropagatesErrorAndCountsRateLimit()
+    public async Task GetPriceData_PropagatesErrorAndCountsRateLimit()
     {
         _handler.SetupAnyRequest().ThrowsAsync(new HttpRequestException("tempo failure"));
 
         var from = DateTimeOffset.Parse("2025-02-10T04:00:00Z");
         var to = DateTimeOffset.Parse("2025-02-10T05:00:00Z");
 
-        Assert.ThrowsAsync<HttpRequestException>(() => _subject.GetPriceData(from, to));
+        await Assert.ThrowsAsync<HttpRequestException>(() => _subject.GetPriceData(from, to));
         _rateLimitHelper.Verify(x => x.AddRequest(), Times.Once);
     }
 }

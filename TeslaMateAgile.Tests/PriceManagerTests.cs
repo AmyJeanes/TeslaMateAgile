@@ -101,7 +101,7 @@ public class PriceManagerTests
     }
 
     [Test]
-    public void PriceManager_CalculateChargeCost_ThrowsOnGapInPriceCoverage()
+    public async Task PriceManager_CalculateChargeCost_ThrowsOnGapInPriceCoverage()
     {
         // Price coverage intentionally ends at 00:30, leaving a gap for the 01:00 charge
         var prices = new List<Price>
@@ -137,7 +137,7 @@ public class PriceManagerTests
 
         _subject = _mocker.CreateInstance<PriceManager>();
 
-        var ex = Assert.ThrowsAsync<Exception>(() => _subject.CalculateChargeCost(charges));
+        var ex = await Assert.ThrowsAsync<Exception>(() => _subject.CalculateChargeCost(charges));
         Assert.That(ex, Is.Not.Null);
         Assert.That(ex!.Message, Does.Contain("missing price data"));
 
@@ -247,7 +247,7 @@ public class PriceManagerTests
     }
 
     [Test]
-    public void PriceManager_CalculateWholeChargeCost_ThrowsWhenTheMatchedChargeHasNoCost()
+    public async Task PriceManager_CalculateWholeChargeCost_ThrowsWhenTheMatchedChargeHasNoCost()
     {
         SetupWholePriceDataService(new List<ProviderCharge>
         {
@@ -260,7 +260,7 @@ public class PriceManagerTests
         });
         _subject = _mocker.CreateInstance<PriceManager>();
 
-        var ex = Assert.ThrowsAsync<Exception>(() => _subject.CalculateChargeCost(TestHelpers.ImportCharges("exactmillisecond_test.csv")));
+        var ex = await Assert.ThrowsAsync<Exception>(() => _subject.CalculateChargeCost(TestHelpers.ImportCharges("exactmillisecond_test.csv")));
         Assert.That(ex.Message, Does.Contain("has no cost reported by the provider"));
     }
 
@@ -270,7 +270,7 @@ public class PriceManagerTests
     /// that one's cost recorded against this charging process.
     /// </summary>
     [Test]
-    public void PriceManager_CalculateWholeChargeCost_DoesNotFallBackToAnotherChargeWhenTheBestMatchHasNoCost()
+    public async Task PriceManager_CalculateWholeChargeCost_DoesNotFallBackToAnotherChargeWhenTheBestMatchHasNoCost()
     {
         SetupWholePriceDataService(new List<ProviderCharge>
         {
@@ -291,7 +291,7 @@ public class PriceManagerTests
         });
         _subject = _mocker.CreateInstance<PriceManager>();
 
-        var ex = Assert.ThrowsAsync<Exception>(() => _subject.CalculateChargeCost(TestHelpers.ImportCharges("exactmillisecond_test.csv")));
+        var ex = await Assert.ThrowsAsync<Exception>(() => _subject.CalculateChargeCost(TestHelpers.ImportCharges("exactmillisecond_test.csv")));
         Assert.That(ex.Message, Does.Contain("23:44:00"), "the closer unpriced charge should have been matched, not the priced one further away");
     }
 

@@ -402,7 +402,7 @@ public class FixedPriceServiceTests
     }
 
     [Test]
-    public void FixedPriceService_GetPriceData_InfiniteLoopProtection()
+    public async Task FixedPriceService_GetPriceData_InfiniteLoopProtection()
     {
         var from = DateTimeOffset.Parse("2021-04-01T00:00:00Z");
         var to = DateTimeOffset.Parse("2021-06-01T00:00:00Z");
@@ -412,7 +412,7 @@ public class FixedPriceServiceTests
                 "20:30-00:30=0.05"
             };
         var fixedPriceService = Setup("Europe/London", fixedPrices);
-        var exception = Assert.ThrowsAsync<Exception>(async () => { await fixedPriceService.GetPriceData(from, to); });
+        var exception = await Assert.ThrowsAsync<Exception>(async () => { await fixedPriceService.GetPriceData(from, to); });
         Assert.That(exception?.Message, Is.EqualTo("Infinite loop detected within FixedPrice provider"));
     }
 }

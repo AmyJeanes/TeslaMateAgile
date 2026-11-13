@@ -1,6 +1,4 @@
 ﻿using CsvHelper;
-using CsvHelper.Configuration;
-using System.Globalization;
 using System.Text.Json;
 using TeslaMateAgile.Data;
 using TeslaMateAgile.Data.TeslaMate.Entities;
@@ -24,29 +22,28 @@ public class TestHelpers
 
     public static List<Charge> ImportCharges(string csvFile)
     {
-        using var reader = new StreamReader(Path.Combine("Charges", csvFile));
-        using var parser = new CsvParser(reader, new CsvConfiguration(CultureInfo.InvariantCulture) { HasHeaderRecord = true });
-        using var csvReader = new CsvReader(parser);
-        csvReader.Read();
-        csvReader.ReadHeader();
+        using var csvReader = CsvReader.FromFile(Path.Combine("Charges", csvFile));
 
         var charges = new List<Charge>();
         while (csvReader.Read())
         {
             charges.Add(new Charge
             {
-                Id = csvReader.GetField<int>("id"),
-                ChargeEnergyAdded = csvReader.GetField<decimal>("charge_energy_added"),
-                ChargerActualCurrent = csvReader.GetField<int?>("charger_actual_current"),
-                ChargerPhases = csvReader.GetField<int?>("charger_phases"),
-                ChargerPower = csvReader.GetField<int>("charger_power"),
-                ChargerVoltage = csvReader.GetField<int>("charger_voltage"),
+                Id = csvReader.Parse<int>("id"),
+                ChargeEnergyAdded = csvReader.Parse<decimal>("charge_energy_added"),
+                ChargerActualCurrent = ParseOptionalInt(csvReader, "charger_actual_current"),
+                ChargerPhases = ParseOptionalInt(csvReader, "charger_phases"),
+                ChargerPower = csvReader.Parse<int>("charger_power"),
+                ChargerVoltage = csvReader.Parse<int>("charger_voltage"),
 #pragma warning disable CS0618 // Type or member is obsolete
-                DateInternal = csvReader.GetField<DateTime>("date")
+                DateInternal = csvReader.Parse<DateTime>("date")
 #pragma warning restore CS0618 // Type or member is obsolete
             });
         }
 
         return charges;
     }
+
+    private static int? ParseOptionalInt(CsvReader csvReader, string name) =>
+        csvReader.GetString(name).Length == 0 ? null : csvReader.Parse<int>(name);
 }

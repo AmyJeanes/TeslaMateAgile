@@ -12,5 +12,15 @@
   "ignoreDeps": [
     // Docker build uses dynamic tags, so we can't pin them and Renovate fails to update them
     "mcr.microsoft.com/dotnet/runtime"
+  ],
+  "packageRules": [
+    {
+      // Npgsql's EF Core provider only accepts EF Core of its own major, so they must update together
+      "groupName": "EF Core and Npgsql",
+      "matchPackageNames": [
+        "Microsoft.EntityFrameworkCore*",
+        "Npgsql.EntityFrameworkCore.PostgreSQL"
+      ]
+    }
   ]
 }

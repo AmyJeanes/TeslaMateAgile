@@ -9,6 +9,15 @@
   "pinDigest": {
     "automerge": true
   },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Container images CI runs with docker run, pinned by digest",
+      "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/"],
+      "matchStrings": ["(?<depName>[a-z0-9][a-z0-9./_-]*):(?<currentValue>[A-Za-z0-9][A-Za-z0-9._-]*)@(?<currentDigest>sha256:[a-f0-9]{64})"],
+      "datasourceTemplate": "docker"
+    }
+  ],
   "packageRules": [
     {
       // Npgsql's EF Core provider only accepts EF Core of its own major, so they must update together

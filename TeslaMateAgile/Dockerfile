@@ -2,7 +2,7 @@
 # Buildx picks with TARGETARCH. Visual Studio's container debugging builds only the base stage
 ARG legacy_image_warning=""
 
-FROM mcr.microsoft.com/dotnet/runtime:11.0@sha256:3fe5f5495141c97986a49d3a4e76061f6225c3f93f94e8a7e522781376193863 AS base
+FROM mcr.microsoft.com/dotnet/runtime:11.0@sha256:43a34aaf5edd4ae1a36dd82fe857602e4b5449bfcf1a9bed753eeb0727dc0c70 AS base
 ARG legacy_image_warning
 ENV TESLAMATE_LEGACY_IMAGE_WARNING=${legacy_image_warning}
 USER app
